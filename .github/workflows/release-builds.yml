@@ -1,0 +1,113 @@
+name: Release Builds
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: 3.41.4
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Build Android App Bundle
+        run: flutter build appbundle --release
+
+      - name: Upload Android workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openchat-android-release
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
+  ios-simulator:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS simulator app
+        run: flutter build ios --debug --simulator
+
+      - name: Package iOS simulator app
+        run: |
+          mkdir -p build/release-artifacts
+          ditto -c -k --sequesterRsrc --keepParent \
+            build/ios/iphonesimulator/Runner.app \
+            build/release-artifacts/OpenChat-ios-simulator.zip
+
+      - name: Upload iOS workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openchat-ios-simulator-release
+          path: build/release-artifacts/OpenChat-ios-simulator.zip
+          if-no-files-found: error
+
+  publish-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - android
+      - ios-simulator
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Android release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: openchat-android-release
+          path: dist/android
+
+      - name: Download iOS simulator artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: openchat-ios-simulator-release
+          path: dist/ios
+
+      - name: Publish GitHub release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            dist/android/app-release.apk
+            dist/android/app-release.aab
+            dist/ios/OpenChat-ios-simulator.zip
