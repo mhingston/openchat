@@ -1,45 +1,27 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
-/// Wraps an Android foreground service that keeps network connections alive
-/// while a chat request is streaming. No-op on iOS and web.
+/// Manages the native Android [KeepAliveService] that holds WiFi and wake
+/// locks while a streaming chat request is in progress.
 ///
-/// Android kills background processes and drops WiFi locks aggressively
-/// (especially on Samsung devices). A foreground service with a WiFi lock
-/// prevents this by promoting the app to foreground priority in the OS
-/// scheduler for the duration of the request.
+/// The service calls [startForeground()] with explicit [foregroundServiceType]
+/// flags (required on Android 14+/API 34+). Using a direct native
+/// implementation avoids the third-party plugin calling [startForeground()]
+/// without service types, which Android kills after a 5-second timeout.
+///
+/// No-op on iOS and web.
 class RequestForegroundService {
-  static bool _initialized = false;
+  static const MethodChannel _channel =
+      MethodChannel('com.mhingston.openchat/keep_alive');
 
   static bool get _supported => !kIsWeb && Platform.isAndroid;
 
   static void init() {
-    if (!_supported) return;
-    FlutterForegroundTask.initCommunicationPort();
-    FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'openchat_request',
-        channelName: 'Request in progress',
-        channelDescription:
-            'Shown while a chat request is running to keep the connection alive.',
-        onlyAlertOnce: true,
-        playSound: false,
-        enableVibration: false,
-      ),
-      iosNotificationOptions: const IOSNotificationOptions(
-        showNotification: false,
-        playSound: false,
-      ),
-      foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.nothing(),
-        autoRunOnBoot: false,
-        allowWakeLock: true,
-        allowWifiLock: true,
-      ),
-    );
-    _initialized = true;
+    // flutter_foreground_task is retained only for notification permission
+    // utilities; we no longer use it to start the actual service.
   }
 
   /// Request notification permission (required on Android 13+).
@@ -53,39 +35,29 @@ class RequestForegroundService {
     }
   }
 
-  static Future<void> start() async {
-    if (!_supported || !_initialized) return;
-    if (await FlutterForegroundTask.isRunningService) return;
-    await FlutterForegroundTask.startService(
-      serviceTypes: <ForegroundServiceTypes>[
-        ForegroundServiceTypes.dataSync,
-        ForegroundServiceTypes.remoteMessaging,
-      ],
-      serviceId: 1001,
-      notificationTitle: 'OpenChat',
-      notificationText: 'Waiting for response…',
-      callback: _taskCallback,
-    );
+  /// Returns true if the notification permission required to run a foreground
+  /// service has been granted (or is not required on this platform).
+  static Future<bool> hasNotificationPermission() async {
+    if (!_supported) return true;
+    return await FlutterForegroundTask.checkNotificationPermission() ==
+        NotificationPermission.granted;
+  }
+
+  /// Starts the native [KeepAliveService]. Returns false if the notification
+  /// permission has not been granted — callers should warn the user.
+  static Future<bool> start() async {
+    if (!_supported) return true;
+    if (!await hasNotificationPermission()) return false;
+    try {
+      await _channel.invokeMethod<void>('start');
+    } catch (_) {}
+    return true;
   }
 
   static Future<void> stop() async {
-    if (!_supported || !_initialized) return;
-    await FlutterForegroundTask.stopService();
+    if (!_supported) return;
+    try {
+      await _channel.invokeMethod<void>('stop');
+    } catch (_) {}
   }
-}
-
-@pragma('vm:entry-point')
-void _taskCallback() {
-  FlutterForegroundTask.setTaskHandler(_NoOpTaskHandler());
-}
-
-class _NoOpTaskHandler extends TaskHandler {
-  @override
-  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {}
-
-  @override
-  void onRepeatEvent(DateTime timestamp) {}
-
-  @override
-  Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {}
 }

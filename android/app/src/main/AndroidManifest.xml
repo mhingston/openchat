@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <application
         android:label="OpenChat"
         android:name="${applicationName}"
@@ -36,7 +38,14 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        <!-- Foreground service for keeping network requests alive when backgrounded. -->
+        <!-- Foreground service that keeps the WiFi/wake locks held during a
+             chat request so Android cannot drop TCP connections in the background. -->
+        <service
+            android:name=".KeepAliveService"
+            android:foregroundServiceType="dataSync|remoteMessaging"
+            android:stopWithTask="true"
+            android:exported="false" />
+        <!-- flutter_foreground_task service (retained for permission utilities). -->
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="dataSync|remoteMessaging"
