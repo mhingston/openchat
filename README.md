@@ -15,15 +15,16 @@ OpenChat is a Flutter chat client with a ChatGPT-style interface, local conversa
 - Responsive chat UI for mobile, desktop, and web.
 - Provider setup flow with presets for OpenAI, OpenRouter, Groq, Together AI, DeepSeek, Ollama Cloud, and custom OpenAI-compatible endpoints.
 - Model fetching plus cached model lists for previously configured providers.
-- Streaming assistant responses with markdown and code block rendering.
+- Streaming assistant responses with markdown and code block rendering, with auto-scroll to follow new content.
 - Attachment support for camera, photos, and files.
-- Local conversation history with rename, duplicate/fork, delete, pin, and search.
+- Local conversation history with rename, duplicate/fork, delete (swipe-to-delete on mobile), pin, and search.
 - Export conversations as JSON or Markdown and import saved chat data.
 - Voice input on iOS, Android, and supported web browsers.
-- Optional DuckDuckGo-backed web search with Jina AI Reader for high-quality page content, plus multi-step link-following for live-web prompts.
-- Source URL citations shown inline on web-search-backed responses.
+- Optional DuckDuckGo-backed web search with Jina AI Reader for high-quality page content, plus multi-step link-following for live-web prompts. Web search preference is persisted across sessions.
+- Source URL citations shown inline on web-search-backed responses. URLs in assistant messages are tappable.
 - Auto-generated conversation titles after the first exchange.
-- Theme selection and desktop/web keyboard shortcuts.
+- Inline copy button on assistant messages.
+- Theme selection and keyboard shortcuts: `Cmd+N` / `Cmd+K` for new chat, `Cmd+/` to toggle web search, `Cmd+Enter` to send.
 
 ## Local development
 
