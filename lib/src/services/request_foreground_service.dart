@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 /// Manages the native Android [KeepAliveService] that holds WiFi and wake
 /// locks while a streaming chat request is in progress.
@@ -11,6 +10,9 @@ import 'package:permission_handler/permission_handler.dart';
 /// flags (required on Android 14+/API 34+). Using a direct native
 /// implementation avoids the third-party plugin calling [startForeground()]
 /// without service types, which Android kills after a 5-second timeout.
+///
+/// Notification permission is requested natively by [MainActivity.onResume()]
+/// using [ActivityResultLauncher] — no Flutter plugin required.
 ///
 /// No-op on iOS and web.
 class RequestForegroundService {
@@ -23,21 +25,20 @@ class RequestForegroundService {
     // Retained for call-site compatibility; no initialisation required.
   }
 
-  /// Requests notification permission on Android 13+ (API 33+).
-  /// Should be called once after the first frame is rendered.
-  static Future<void> requestPermissions() async {
-    if (!_supported) return;
-    final status = await Permission.notification.status;
-    if (!status.isGranted) {
-      await Permission.notification.request();
-    }
-  }
+  /// No-op — permission is now requested natively in MainActivity.onResume().
+  static Future<void> requestPermissions() async {}
 
   /// Returns true if the notification permission required to run a foreground
   /// service has been granted (or is not required on this platform).
   static Future<bool> hasNotificationPermission() async {
     if (!_supported) return true;
-    return await Permission.notification.isGranted;
+    try {
+      final granted =
+          await _channel.invokeMethod<bool>('hasNotificationPermission');
+      return granted ?? true;
+    } catch (_) {
+      return true;
+    }
   }
 
   /// Starts the native [KeepAliveService]. Returns false if the notification
