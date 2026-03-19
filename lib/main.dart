@@ -16,8 +16,6 @@ import 'src/services/voice_input_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // No-op now that RequestForegroundService uses a native platform channel
-  // rather than flutter_foreground_task's managed service.
   RequestForegroundService.init();
 
   final SharedPreferences preferences = await SharedPreferences.getInstance();
