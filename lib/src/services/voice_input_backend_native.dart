@@ -27,12 +27,15 @@ class NativeVoiceInputBackend implements VoiceInputBackend {
     required Duration listenFor,
     required Duration pauseFor,
   }) async {
+    // ignore: deprecated_member_use
     await _speech.listen(
       onResult: (SpeechRecognitionResult result) =>
           _onResult?.call(result.recognizedWords),
       listenFor: listenFor,
       pauseFor: pauseFor,
+      // ignore: deprecated_member_use
       cancelOnError: false,
+      // ignore: deprecated_member_use
       partialResults: true,
     );
   }

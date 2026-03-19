@@ -89,3 +89,7 @@ class SelectPreviousConversationIntent extends Intent {
 class SelectNextConversationIntent extends Intent {
   const SelectNextConversationIntent();
 }
+
+class ToggleWebSearchIntent extends Intent {
+  const ToggleWebSearchIntent();
+}

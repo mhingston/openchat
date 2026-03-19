@@ -41,7 +41,49 @@ class ConversationList extends StatelessWidget {
         final ChatThread thread = threads[index];
         final bool isSelected = thread.id == selectedThreadId;
 
-        return Material(
+        return Dismissible(
+          key: ValueKey<String>(thread.id),
+          direction: DismissDirection.endToStart,
+          onDismissed: (_) => onDeleteThread(thread.id),
+          confirmDismiss: (_) async {
+            return await showDialog<bool>(
+                  context: context,
+                  builder: (BuildContext ctx) => AlertDialog(
+                    title: const Text('Delete conversation?'),
+                    content:
+                        Text('Delete "${thread.title}"? This cannot be undone.'),
+                    actions: <Widget>[
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: Text(
+                          'Delete',
+                          style: TextStyle(
+                            color: context.openChatPalette.danger,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ) ??
+                false;
+          },
+          background: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 20),
+            decoration: BoxDecoration(
+              color: context.openChatPalette.danger.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(
+              Icons.delete_outline,
+              color: context.openChatPalette.danger,
+            ),
+          ),
+          child: Material(
           color: isSelected
               ? context.openChatPalette.surfaceRaised
               : Colors.transparent,
@@ -149,7 +191,8 @@ class ConversationList extends StatelessWidget {
               ],
             ),
           ),
-        );
+        ), // closes Material (Dismissible child)
+        ); // closes Dismissible
       },
     );
   }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../theme/app_theme.dart';
 
@@ -121,6 +122,13 @@ class _MarkdownText extends StatelessWidget {
       data: data,
       selectable: false,
       softLineBreak: true,
+      onTapLink: (String text, String? href, String title) {
+        if (href == null || href.isEmpty) return;
+        final Uri? uri = Uri.tryParse(href);
+        if (uri != null) {
+          unawaited(launchUrl(uri, mode: LaunchMode.externalApplication));
+        }
+      },
       styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
         p: theme.textTheme.bodyLarge?.copyWith(
           color: theme.colorScheme.onSurface,

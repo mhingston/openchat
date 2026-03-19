@@ -2,12 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/attachment.dart';
 import '../services/attachment_store.dart';
 import '../services/voice_input_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/keyboard_shortcuts.dart';
+
+const String _kWebSearchEnabledKey = 'web_search_enabled';
 
 class ChatComposer extends StatefulWidget {
   const ChatComposer({
@@ -59,6 +62,7 @@ class _ChatComposerState extends State<ChatComposer> {
     _appliedDraftVersion = widget.draftVersion;
     _applyExternalDraft(widget.draftText ?? '');
     widget.voiceService?.addListener(_onVoiceServiceChanged);
+    unawaited(_loadWebSearchPreference());
   }
 
   @override
@@ -217,6 +221,8 @@ class _ChatComposerState extends State<ChatComposer> {
         OpenChatKeyboardShortcuts.primaryActivator(LogicalKeyboardKey.enter):
             const SendMessageIntent(),
         OpenChatKeyboardShortcuts.escapeActivator: const ClearDraftIntent(),
+        OpenChatKeyboardShortcuts.primaryActivator(LogicalKeyboardKey.slash):
+            const ToggleWebSearchIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
@@ -233,6 +239,12 @@ class _ChatComposerState extends State<ChatComposer> {
               if (canClear) {
                 _clearDraft();
               }
+              return null;
+            },
+          ),
+          ToggleWebSearchIntent: CallbackAction<ToggleWebSearchIntent>(
+            onInvoke: (ToggleWebSearchIntent intent) {
+              _toggleWebSearch();
               return null;
             },
           ),
@@ -720,10 +732,22 @@ class _ChatComposerState extends State<ChatComposer> {
     widget.onCancelEdit?.call();
   }
 
-  void _toggleWebSearch() {
+  Future<void> _loadWebSearchPreference() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
-      _webSearchEnabled = !_webSearchEnabled;
+      _webSearchEnabled = prefs.getBool(_kWebSearchEnabledKey) ?? false;
     });
+  }
+
+  void _toggleWebSearch() {
+    final bool newValue = !_webSearchEnabled;
+    setState(() {
+      _webSearchEnabled = newValue;
+    });
+    unawaited(SharedPreferences.getInstance().then(
+      (SharedPreferences prefs) => prefs.setBool(_kWebSearchEnabledKey, newValue),
+    ));
   }
 
   void _clearDraftInternal() {

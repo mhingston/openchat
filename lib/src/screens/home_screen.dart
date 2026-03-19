@@ -33,11 +33,18 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final ChatExportService _chatExportService = ChatExportService();
+  final ScrollController _messagesScrollController = ScrollController();
   String? _editingThreadId;
   String? _editingMessageId;
   String? _editingDraftText;
   List<ChatAttachment> _editingBaseAttachments = const <ChatAttachment>[];
   int _composerDraftVersion = 0;
+
+  @override
+  void dispose() {
+    _messagesScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +56,22 @@ class _HomeScreenState extends State<HomeScreen> {
     final bool showProviderBanner = !settingsController.hasConfiguredProvider &&
         currentThread != null &&
         currentThread.messages.isNotEmpty;
+
+    // Auto-scroll to the bottom while streaming a response or when switching
+    // to a thread for the first time during a send.
+    if (chatController.isSending && currentThread != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_messagesScrollController.hasClients &&
+            _messagesScrollController.position.maxScrollExtent > 0) {
+          _messagesScrollController.animateTo(
+            _messagesScrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+          );
+        }
+      });
+    }
 
     final Widget child = Scaffold(
       key: _scaffoldKey,
@@ -220,6 +243,8 @@ class _HomeScreenState extends State<HomeScreen> {
       shortcuts: <ShortcutActivator, Intent>{
         OpenChatKeyboardShortcuts.primaryActivator(LogicalKeyboardKey.keyN):
             const NewChatIntent(),
+        OpenChatKeyboardShortcuts.primaryActivator(LogicalKeyboardKey.keyK):
+            const NewChatIntent(),
         OpenChatKeyboardShortcuts.primaryActivator(LogicalKeyboardKey.comma):
             const OpenSettingsIntent(),
         OpenChatKeyboardShortcuts.primaryActivator(LogicalKeyboardKey.keyF):
@@ -290,6 +315,15 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
     _closeDrawerIfOpen();
+    // Jump to the bottom of the newly selected conversation.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_messagesScrollController.hasClients) {
+        _messagesScrollController.jumpTo(
+          _messagesScrollController.position.maxScrollExtent,
+        );
+      }
+    });
   }
 
   Future<void> _togglePinnedThread(
@@ -419,6 +453,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         Expanded(
           child: ListView.separated(
+            controller: _messagesScrollController,
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
             itemCount: currentThread.messages.length,
             separatorBuilder: (_, __) => const SizedBox(height: 12),

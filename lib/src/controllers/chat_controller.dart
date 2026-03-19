@@ -833,8 +833,9 @@ class ChatController extends ChangeNotifier {
     _searchStatus = 'Searching the web…';
     notifyListeners();
 
+    final String searchQuery = _buildSearchQuery(requestMessages);
     final List<WebSearchResult> results = await _webSearchService.search(
-      latestUserMessage.text,
+      searchQuery,
     );
     if (results.isEmpty) {
       _searchStatus = null;
@@ -847,7 +848,7 @@ class ChatController extends ChangeNotifier {
 
     final List<WebPageExcerpt> excerpts = await _webPageBrowseService.browse(
       results,
-      query: latestUserMessage.text,
+      query: searchQuery,
     );
 
     _searchStatus = null;
@@ -863,7 +864,7 @@ class ChatController extends ChangeNotifier {
       id: _newId('message'),
       role: ChatRole.system,
       text: _webPageBrowseService.formatBrowseContext(
-        latestUserMessage.text,
+        searchQuery,
         results,
         excerpts,
       ),
@@ -970,6 +971,52 @@ class ChatController extends ChangeNotifier {
         .replaceAll(RegExp(r'\n{3,}'), '\n\n')
         .trim();
     return sanitized;
+  }
+
+  /// Builds a condensed search query from the last few conversation turns.
+  /// Uses the latest user message as the primary query, but prefixes it with
+  /// enough prior context so that follow-up questions like "what about next
+  /// week?" are searchable without the AI conversation history.
+  String _buildSearchQuery(List<ChatMessage> messages) {
+    final List<ChatMessage> contextMessages = messages
+        .where((ChatMessage m) =>
+            m.role != ChatRole.system && m.text.trim().isNotEmpty)
+        .toList();
+
+    if (contextMessages.isEmpty) {
+      return '';
+    }
+
+    final ChatMessage latestUser = contextMessages.lastWhere(
+      (ChatMessage m) => m.role == ChatRole.user,
+      orElse: () => contextMessages.last,
+    );
+    final String latestText = latestUser.text.trim();
+
+    // If the latest message is already self-contained (long enough and has
+    // clear nouns/entities), use it directly.
+    final bool looksStandalone = latestText.split(' ').length >= 5 ||
+        RegExp(r'[A-Z][a-z]').hasMatch(latestText);
+    if (looksStandalone) {
+      return latestText;
+    }
+
+    // Build a 2-turn context prefix: prior assistant snippet + current user.
+    final List<ChatMessage> recent = contextMessages.length > 3
+        ? contextMessages.sublist(contextMessages.length - 3)
+        : contextMessages;
+
+    final StringBuffer buffer = StringBuffer();
+    for (final ChatMessage m in recent) {
+      if (m == latestUser) continue;
+      final String snippet = m.text.trim();
+      final String short = snippet.length > 120
+          ? '${snippet.substring(0, 120)}…'
+          : snippet;
+      buffer.write('${short.replaceAll('\n', ' ')} ');
+    }
+    buffer.write(latestText);
+    return buffer.toString().trim();
   }
 
   void _sortThreads() {
