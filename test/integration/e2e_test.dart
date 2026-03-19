@@ -20,18 +20,18 @@
 
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:openchat/src/controllers/chat_controller.dart';
 import 'package:openchat/src/models/attachment.dart';
 import 'package:openchat/src/models/chat_message.dart';
 import 'package:openchat/src/models/provider_config.dart';
+import 'package:openchat/src/models/web_search_result.dart';
+import 'package:openchat/src/services/chat_store.dart';
 import 'package:openchat/src/services/openai_compatible_client.dart';
 import 'package:openchat/src/services/web_page_browse_service.dart';
 import 'package:openchat/src/services/web_search_service.dart';
-import 'package:openchat/src/models/web_search_result.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:openchat/src/controllers/chat_controller.dart';
-import 'package:openchat/src/services/chat_store.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
