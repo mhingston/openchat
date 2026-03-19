@@ -10,10 +10,13 @@ import 'src/services/app_settings_store.dart';
 import 'src/services/chat_store.dart';
 import 'src/services/openai_compatible_client.dart';
 import 'src/services/provider_config_store.dart';
+import 'src/services/request_foreground_service.dart';
 import 'src/services/voice_input_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  RequestForegroundService.init();
 
   final SharedPreferences preferences = await SharedPreferences.getInstance();
   final ProviderConfigStore providerConfigStore =

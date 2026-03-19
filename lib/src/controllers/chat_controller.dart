@@ -10,6 +10,7 @@ import '../models/provider_config.dart';
 import '../models/web_search_result.dart';
 import '../services/chat_store.dart';
 import '../services/openai_compatible_client.dart';
+import '../services/request_foreground_service.dart';
 import '../services/web_page_browse_service.dart';
 import '../services/web_search_service.dart';
 
@@ -325,6 +326,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     _selectedThreadId = thread.id;
     _lastError = null;
     _isSending = true;
+    unawaited(RequestForegroundService.start());
     notifyListeners();
     await _persist();
 
@@ -376,6 +378,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       notifyListeners();
     } finally {
       _isSending = false;
+      unawaited(RequestForegroundService.stop());
       _sortThreads();
       await _persist();
       notifyListeners();
@@ -759,6 +762,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     _lastError = null;
     _isSending = true;
     _lastUsedConfig = config;
+    unawaited(RequestForegroundService.start());
     notifyListeners();
     await _persist();
 
@@ -829,6 +833,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       notifyListeners();
     } finally {
       _isSending = false;
+      unawaited(RequestForegroundService.stop());
       _searchStatus = null;
       _sortThreads();
       await _persist();

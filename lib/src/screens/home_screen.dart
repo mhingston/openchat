@@ -12,6 +12,7 @@ import '../models/chat_thread.dart';
 import '../models/conversation_search_result.dart';
 import '../models/provider_config.dart';
 import '../services/chat_export_service.dart';
+import '../services/request_foreground_service.dart';
 import '../services/voice_input_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/keyboard_shortcuts.dart';
@@ -44,6 +45,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _messagesScrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      RequestForegroundService.requestPermissions();
+    });
   }
 
   @override
