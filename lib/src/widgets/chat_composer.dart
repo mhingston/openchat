@@ -720,7 +720,22 @@ class _ChatComposerState extends State<ChatComposer> {
       return;
     }
 
-    _clearDraft();
+    // Ownership of attachment files transfers to the saved message — do NOT
+    // delete the files here. Only clear the in-memory list.
+    _clearDraftAfterSend();
+  }
+
+  /// Clears the composer after a successful send WITHOUT deleting attachment
+  /// files (they are now owned by the saved message).
+  void _clearDraftAfterSend() {
+    if (widget.voiceService?.isListening == true) {
+      unawaited(widget.voiceService!.cancelListening());
+    }
+    setState(() {
+      _textController.clear();
+      _attachments.clear();
+    });
+    widget.onCancelEdit?.call();
   }
 
   void _clearDraft() {
