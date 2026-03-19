@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -325,6 +326,88 @@ void main() {
       expect(assistantMessage.text, isNot(contains('Fetching BBC News')));
       expect(assistantMessage.text, isNot(contains('Let me extract')));
       expect(assistantMessage.text, contains('Top BBC headlines include'));
+    });
+
+    // Regression: during Ollama streaming, think-block content and tags must
+    // never appear in any intermediate or final message text.  Earlier builds
+    // showed raw </think> in the UI because the streaming sanitizer stripped
+    // the opening <think> tag while leaving the content between the tags
+    // visible until </think> arrived in a later chunk.
+    test(
+        'streaming think block content does not appear in any intermediate '
+        'message snapshot', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences preferences =
+          await SharedPreferences.getInstance();
+      final ChatStore store = ChatStore(preferences);
+
+      // Simulate an Ollama model that streams a think block across several
+      // chunks, followed by the actual answer.
+      final List<String> ollamaChunks = <String>[
+        '{"message":{"role":"assistant","content":"<think>"},"done":false}\n',
+        '{"message":{"role":"assistant","content":"internal reasoning here"},"done":false}\n',
+        '{"message":{"role":"assistant","content":"</think>"},"done":false}\n',
+        '{"message":{"role":"assistant","content":"The answer is 42."},"done":false}\n',
+        '{"done":true}\n',
+      ];
+
+      final ChatController controller = ChatController(
+        chatStore: store,
+        apiClient: OpenAiCompatibleClient(
+          isWebOverride: false,
+          httpClient: _StreamingClient(ollamaChunks),
+        ),
+      );
+      await controller.initialize();
+
+      // Capture every intermediate text value the controller emits.
+      final List<String> snapshots = <String>[];
+      controller.addListener(() {
+        final String? text = controller.currentThread?.messages.last.text;
+        if (text != null) snapshots.add(text);
+      });
+
+      await controller.sendMessage(
+        text: 'What is 6 * 7?',
+        attachments: const <ChatAttachment>[],
+        config: const ProviderConfig(
+          presetId: 'ollama-cloud',
+          label: 'Ollama Cloud',
+          baseUrl: 'https://ollama.com',
+          apiKey: 'test-key',
+          model: 'llama3',
+          systemPrompt: '',
+          temperature: 1.0,
+          streamResponses: true,
+        ),
+      );
+
+      expect(snapshots, isNotEmpty, reason: 'Expected streaming snapshots');
+
+      for (final String snapshot in snapshots) {
+        expect(
+          snapshot,
+          isNot(contains('<think>')),
+          reason: 'Think opening tag leaked into streamed text: "$snapshot"',
+        );
+        expect(
+          snapshot,
+          isNot(contains('</think>')),
+          reason: 'Think closing tag leaked into streamed text: "$snapshot"',
+        );
+        expect(
+          snapshot,
+          isNot(contains('internal reasoning here')),
+          reason: 'Think content leaked into streamed text: "$snapshot"',
+        );
+      }
+
+      final ChatMessage finalMessage =
+          controller.currentThread!.messages.last;
+      expect(finalMessage.text, contains('42'));
+      expect(finalMessage.text, isNot(contains('<think>')));
+      expect(finalMessage.text, isNot(contains('</think>')));
+      expect(finalMessage.text, isNot(contains('internal reasoning here')));
     });
 
     test('sendMessage falls back to search snippets when page browsing fails',
@@ -885,4 +968,29 @@ OpenAiCompatibleClient _createClient() {
       return http.Response('{}', 200);
     }),
   );
+}
+
+// A minimal HTTP client that returns a pre-baked list of byte chunks as a
+// true streaming response.  Used to simulate Ollama streaming SSE output
+// arriving in separate packets.
+class _StreamingClient extends http.BaseClient {
+  _StreamingClient(this._lines);
+
+  final List<String> _lines;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    final StreamController<List<int>> controller =
+        StreamController<List<int>>();
+    Future.microtask(() async {
+      for (final String line in _lines) {
+        controller.add(utf8.encode(line));
+        // Yield between chunks so the controller's listener can process each
+        // one independently, mirroring real network packet delivery.
+        await Future<void>.delayed(Duration.zero);
+      }
+      await controller.close();
+    });
+    return http.StreamedResponse(controller.stream, 200);
+  }
 }

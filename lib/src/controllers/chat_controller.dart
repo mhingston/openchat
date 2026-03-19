@@ -752,17 +752,23 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       );
 
       await RequestForegroundService.start();
+      // Accumulate the raw (unsanitised) response so that _sanitizeAssistantOutput
+      // always operates on the full text.  Storing only the sanitised form between
+      // chunks loses structural markers like <think> before the matching </think>
+      // has arrived, causing think-block content to leak into the displayed text.
+      final StringBuffer rawBuffer = StringBuffer();
       await for (final ChatCompletionChunk chunk
           in _apiClient.streamChatCompletion(
         config: config,
         messages: requestMessages,
       )) {
         if (chunk.isDone) {
+          final String sanitizedText =
+              _sanitizeAssistantOutput(rawBuffer.toString());
           _updateMessage(
             threadId: thread.id,
             messageId: assistantMessage.id,
             updater: (ChatMessage message) {
-              final String sanitizedText = _sanitizeAssistantOutput(message.text);
               if (sanitizedText.trim().isEmpty) {
                 return message.copyWith(
                   text: 'No response received.',
@@ -785,11 +791,14 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
             ));
           }
         } else {
+          rawBuffer.write(chunk.delta);
+          final String sanitizedText =
+              _sanitizeAssistantOutput(rawBuffer.toString());
           _updateMessage(
             threadId: thread.id,
             messageId: assistantMessage.id,
             updater: (ChatMessage message) => message.copyWith(
-              text: _sanitizeAssistantOutput('${message.text}${chunk.delta}'),
+              text: sanitizedText,
               isStreaming: true,
             ),
           );
@@ -924,9 +933,18 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
 
   String _sanitizeAssistantOutput(String text) {
     String sanitized = text
+        // Pass 1: remove complete <think>...</think> blocks.
         .replaceAll(
           RegExp(r'<think\b[^>]*>.*?</think>', caseSensitive: false, dotAll: true),
           ' ',
+        )
+        // Pass 2: remove any unclosed <think> block that is still arriving —
+        // i.e. everything from a lone opening tag to the end of the string.
+        // This prevents think-block content from leaking into the UI during
+        // streaming before the closing </think> has been received.
+        .replaceAll(
+          RegExp(r'<think\b[^>]*>.*$', caseSensitive: false, dotAll: true),
+          '',
         )
         .replaceAll(
           RegExp(
