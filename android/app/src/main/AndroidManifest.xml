@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING"/>
     <application
         android:label="OpenChat"
         android:name="${applicationName}"
@@ -38,7 +39,7 @@
         <!-- Foreground service for keeping network requests alive when backgrounded. -->
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
-            android:foregroundServiceType="dataSync"
+            android:foregroundServiceType="dataSync|remoteMessaging"
             android:stopWithTask="true"
             android:exported="false" />
     </application>

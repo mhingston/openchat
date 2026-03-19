@@ -57,6 +57,10 @@ class RequestForegroundService {
     if (!_supported || !_initialized) return;
     if (await FlutterForegroundTask.isRunningService) return;
     await FlutterForegroundTask.startService(
+      serviceTypes: <ForegroundServiceTypes>[
+        ForegroundServiceTypes.dataSync,
+        ForegroundServiceTypes.remoteMessaging,
+      ],
       serviceId: 1001,
       notificationTitle: 'OpenChat',
       notificationText: 'Waiting for response…',

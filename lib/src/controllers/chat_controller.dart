@@ -325,11 +325,11 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     _selectedThreadId = thread.id;
     _lastError = null;
     _isSending = true;
-    unawaited(RequestForegroundService.start());
     notifyListeners();
     await _persist();
 
     try {
+      await RequestForegroundService.start();
       await for (final ChatCompletionChunk chunk
           in _apiClient.streamChatCompletion(
         config: config,
@@ -740,7 +740,6 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     _replaceThread(thread);
     _lastError = null;
     _isSending = true;
-    unawaited(RequestForegroundService.start());
     notifyListeners();
     await _persist();
 
@@ -752,6 +751,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         useWebSearch: useWebSearch,
       );
 
+      await RequestForegroundService.start();
       await for (final ChatCompletionChunk chunk
           in _apiClient.streamChatCompletion(
         config: config,
