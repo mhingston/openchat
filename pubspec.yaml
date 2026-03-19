@@ -21,6 +21,7 @@ dependencies:
   path_provider: ^2.1.4
   speech_to_text: ^6.6.2
   url_launcher: ^6.3.0
+  image: ^4.2.0
 
 dev_dependencies:
   flutter_test:

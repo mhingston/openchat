@@ -1,9 +1,9 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
 
@@ -100,18 +100,28 @@ class AttachmentStore {
     XFile file, {
     String source = 'image',
   }) async {
-    final List<int> bytes = await file.readAsBytes();
+    final List<int> rawBytes = await file.readAsBytes();
     final String name = file.name.trim().isEmpty
         ? 'image-${DateTime.now().millisecondsSinceEpoch}.jpg'
         : file.name.trim();
 
+    final String originalMime = _detectMimeType(name, rawBytes, AttachmentKind.image);
+    final (Uint8List finalBytes, String finalMime) =
+        await _compressImage(Uint8List.fromList(rawBytes), originalMime);
+
+    // Use final (possibly compressed) name with correct extension
+    final String finalName = finalMime == 'image/jpeg' && !name.toLowerCase().endsWith('.jpg') && !name.toLowerCase().endsWith('.jpeg')
+        ? '${name.replaceAll(RegExp(r'\.[^.]+$'), '')}.jpg'
+        : name;
+
     return _buildAttachment(
-      name: name,
-      bytes: bytes,
+      name: finalName,
+      bytes: finalBytes,
       forcedKind: AttachmentKind.image,
+      forcedMime: finalMime,
       previewText: _buildImagePreviewText(
         source: source,
-        sizeBytes: bytes.length,
+        sizeBytes: finalBytes.length,
       ),
     );
   }
@@ -136,15 +146,32 @@ class AttachmentStore {
         ? AttachmentKind.image
         : AttachmentKind.file;
 
+    List<int> finalBytes = bytes;
+    String finalMime = mimeType;
+    String finalName = name;
+
+    if (kind == AttachmentKind.image) {
+      final (Uint8List compressed, String compressedMime) =
+          await _compressImage(Uint8List.fromList(bytes), mimeType);
+      finalBytes = compressed;
+      finalMime = compressedMime;
+      if (compressedMime == 'image/jpeg' &&
+          !name.toLowerCase().endsWith('.jpg') &&
+          !name.toLowerCase().endsWith('.jpeg')) {
+        finalName = '${name.replaceAll(RegExp(r'\.[^.]+$'), '')}.jpg';
+      }
+    }
+
     return _buildAttachment(
-      name: name,
-      bytes: bytes,
+      name: finalName,
+      bytes: finalBytes,
       forcedKind: kind,
+      forcedMime: finalMime,
       previewText: _buildFilePreviewText(
-        fileName: name,
-        mimeType: mimeType,
-        bytes: bytes,
-        sizeBytes: bytes.length,
+        fileName: finalName,
+        mimeType: finalMime,
+        bytes: finalBytes,
+        sizeBytes: finalBytes.length,
       ),
     );
   }
@@ -238,8 +265,9 @@ class AttachmentStore {
     required List<int> bytes,
     required AttachmentKind forcedKind,
     required String previewText,
+    String? forcedMime,
   }) async {
-    final String mimeType = _detectMimeType(name, bytes, forcedKind);
+    final String mimeType = forcedMime ?? _detectMimeType(name, bytes, forcedKind);
     final AttachmentKind kind =
         forcedKind == AttachmentKind.file && mimeType.startsWith('image/')
             ? AttachmentKind.image
@@ -437,6 +465,39 @@ class AttachmentStore {
 
   static const int _thumbnailMaxWidth = 200;
 
+  /// Resizes and re-encodes large images before storage/upload.
+  /// Images with both dimensions ≤ [_uploadMaxDimension] and size ≤
+  /// [_uploadMinSizeToCompress] are returned unchanged.
+  /// Larger images are resized to fit within [_uploadMaxDimension] and
+  /// re-encoded as JPEG at [_uploadJpegQuality] quality.
+  static const int _uploadMaxDimension = 2048;
+  static const int _uploadJpegQuality = 85;
+  static const int _uploadMinSizeToCompress = 512 * 1024; // 512 KB
+
+  Future<(Uint8List, String)> _compressImage(
+      Uint8List bytes, String mimeType) async {
+    // Skip non-raster formats (GIF, SVG, etc.) that may not decode cleanly
+    const Set<String> compressible = <String>{
+      'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/bmp',
+      'image/tiff',
+    };
+    if (!compressible.contains(mimeType)) {
+      return (bytes, mimeType);
+    }
+    if (bytes.length < _uploadMinSizeToCompress) {
+      return (bytes, mimeType);
+    }
+    try {
+      return await compute(
+        _compressImageIsolate,
+        (bytes, mimeType, _uploadMaxDimension, _uploadJpegQuality),
+      );
+    } catch (_) {
+      // If compression fails for any reason, use the original bytes
+      return (bytes, mimeType);
+    }
+  }
+
   Future<String?> _generateThumbnailBase64(List<int> bytes) async {
     try {
       final ui.Codec codec = await ui.instantiateImageCodec(
@@ -457,4 +518,38 @@ class AttachmentStore {
       return null;
     }
   }
+}
+
+/// Top-level function required by [compute] — must not be a closure or method.
+(Uint8List, String) _compressImageIsolate(
+    (Uint8List, String, int, int) args) {
+  final (bytes, mime, maxDim, quality) = args;
+
+  final img.Image? decoded = img.decodeImage(bytes);
+  if (decoded == null) {
+    return (bytes, mime);
+  }
+
+  final bool needsResize = decoded.width > maxDim || decoded.height > maxDim;
+
+  img.Image processed;
+  if (needsResize) {
+    processed = decoded.width >= decoded.height
+        ? img.copyResize(decoded,
+            width: maxDim, interpolation: img.Interpolation.linear)
+        : img.copyResize(decoded,
+            height: maxDim, interpolation: img.Interpolation.linear);
+  } else {
+    processed = decoded;
+  }
+
+  final Uint8List compressed =
+      Uint8List.fromList(img.encodeJpg(processed, quality: quality));
+
+  // Only use the compressed version if it's actually smaller
+  if (compressed.length >= bytes.length) {
+    return (bytes, mime);
+  }
+
+  return (compressed, 'image/jpeg');
 }
