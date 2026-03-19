@@ -63,9 +63,43 @@ class WebPageBrowseService {
         // Try Jina Reader first for clean markdown content.
         final String? jinaContent = await _fetchJinaContent(upstreamUri);
         if (jinaContent != null) {
-          final WebPageExcerpt? excerpt = _extractExcerptFromMarkdown(
+          final WebPageExcerpt? jinaExcerpt = _extractExcerptFromMarkdown(
             result,
             jinaContent,
+            pageUrl: upstreamUri.toString(),
+            maxExcerptLength: maxExcerptLength,
+          );
+          if (jinaExcerpt != null) {
+            excerpts.add(jinaExcerpt);
+            fetchedUrls.add(jinaExcerpt.url);
+          }
+          // Jina gives high-quality content for article/content pages.
+          // However, JavaScript-heavy index pages (e.g. news homepages) may
+          // return only navigation structure. If the prose word count is below
+          // the threshold, fall through to HTML scraping so link-following can
+          // surface the actual article pages.
+          if (_jinaProseWordCount(jinaContent) >= _jinaMinProseWords) {
+            continue;
+          }
+          // Low prose content — proceed to HTML scraping for link-following.
+          // (The Jina excerpt, if any, is already added above.)
+        }
+
+        // HTML scraping with link-following.
+        final String? html = await _fetchHtml(upstreamUri);
+        if (html == null) {
+          continue;
+        }
+
+        // Only add an HTML excerpt if Jina didn't already provide one for
+        // this URL (avoids duplicate excerpts for the same page).
+        final bool alreadyHaveExcerpt =
+            fetchedUrls.contains(upstreamUri.toString());
+        WebPageExcerpt? excerpt;
+        if (!alreadyHaveExcerpt) {
+          excerpt = _extractExcerpt(
+            result,
+            html,
             pageUrl: upstreamUri.toString(),
             maxExcerptLength: maxExcerptLength,
           );
@@ -73,25 +107,6 @@ class WebPageBrowseService {
             excerpts.add(excerpt);
             fetchedUrls.add(excerpt.url);
           }
-          // Jina provides high-quality content; skip link-following for this result.
-          continue;
-        }
-
-        // Fall back to HTML scraping with link-following.
-        final String? html = await _fetchHtml(upstreamUri);
-        if (html == null) {
-          continue;
-        }
-
-        final WebPageExcerpt? excerpt = _extractExcerpt(
-          result,
-          html,
-          pageUrl: upstreamUri.toString(),
-          maxExcerptLength: maxExcerptLength,
-        );
-        if (excerpt != null) {
-          excerpts.add(excerpt);
-          fetchedUrls.add(excerpt.url);
         }
 
         if (followedPages >= maxFollowedPages ||
@@ -318,6 +333,30 @@ class WebPageBrowseService {
       discoveredFromUrl: discoveredFromUrl,
       discoveredFromTitle: discoveredFromTitle,
     );
+  }
+
+  /// Minimum number of prose words (non-link text) required in Jina content
+  /// before we trust it and skip HTML link-following for the page.
+  /// Pages below this threshold (e.g. JS-rendered news homepages) will still
+  /// have their links followed via HTML scraping.
+  static const int _jinaMinProseWords = 60;
+
+  /// Counts "prose words" in Jina markdown — i.e. words that are NOT inside
+  /// markdown link syntax `[anchor](url)` or bare URLs.
+  int _jinaProseWordCount(String markdown) {
+    // Strip markdown links, keeping only the anchor text
+    String prose = markdown.replaceAllMapped(
+      RegExp(r'\[([^\]]*)\]\([^)]*\)'),
+      (Match m) => m.group(1) ?? '',
+    );
+    // Remove bare URLs
+    prose = prose.replaceAll(RegExp(r'https?://\S+'), '');
+    // Remove markdown syntax characters
+    prose = prose.replaceAll(RegExp(r'[#*_`~>|!\[\]()]+'), ' ');
+    return prose
+        .split(RegExp(r'\s+'))
+        .where((String w) => w.length > 2)
+        .length;
   }
 
   /// Fetches clean markdown content from the Jina Reader API.
