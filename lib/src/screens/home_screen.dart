@@ -302,6 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _createThread(BuildContext context) async {
+    _clearEditingDraft();
     await context.read<ChatController>().createThread();
     if (!mounted) {
       return;
@@ -310,6 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _selectThread(BuildContext context, String threadId) async {
+    _clearEditingDraft();
     await context.read<ChatController>().selectThread(threadId);
     if (!mounted) {
       return;

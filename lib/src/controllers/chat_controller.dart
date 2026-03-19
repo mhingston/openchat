@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../models/attachment.dart';
 import '../models/chat_message.dart';
@@ -13,7 +13,7 @@ import '../services/openai_compatible_client.dart';
 import '../services/web_page_browse_service.dart';
 import '../services/web_search_service.dart';
 
-class ChatController extends ChangeNotifier {
+class ChatController extends ChangeNotifier with WidgetsBindingObserver {
   ChatController(
       {required ChatStore chatStore,
       required OpenAiCompatibleClient apiClient,
@@ -60,6 +60,7 @@ class ChatController extends ChangeNotifier {
   }
 
   Future<void> initialize() async {
+    WidgetsBinding.instance.addObserver(this);
     final List<ChatThread> storedThreads = await _chatStore.loadThreads();
     _threads
       ..clear()
@@ -574,7 +575,15 @@ class ChatController extends ChangeNotifier {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _apiClient.resetHttpClient();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _apiClient.dispose();
     _webSearchService.dispose();
     _webPageBrowseService.dispose();

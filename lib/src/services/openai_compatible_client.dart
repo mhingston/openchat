@@ -32,7 +32,7 @@ class OpenAiCompatibleClient {
         _webProxyUrl = webProxyUrl,
         _attachmentStore = attachmentStore;
 
-  final http.Client _httpClient;
+  http.Client _httpClient;
   final bool _ownsClient;
   final bool _isWeb;
   final String _webProxyUrl;
@@ -300,6 +300,16 @@ class OpenAiCompatibleClient {
       return title.isEmpty ? null : title;
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Closes the current HTTP client and creates a fresh one. Call this when
+  /// the app returns to the foreground so stale OS-level connections are
+  /// discarded and DNS resolution starts clean.
+  void resetHttpClient() {
+    if (_ownsClient) {
+      _httpClient.close();
+      _httpClient = http.Client();
     }
   }
 
