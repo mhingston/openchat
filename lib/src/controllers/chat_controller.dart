@@ -37,6 +37,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
   String? _lastError;
   String? _searchStatus;
   int _nextLocalId = 0;
+  ProviderConfig? _lastUsedConfig;
 
   List<ChatThread> get threads => List<ChatThread>.unmodifiable(_threads);
   bool get initialized => _initialized;
@@ -578,6 +579,26 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _apiClient.resetHttpClient();
+      _retryLastMessageIfFailed();
+    }
+  }
+
+  /// If the most recent assistant message failed (e.g. connection dropped while
+  /// the app was backgrounded), automatically retry it so the user doesn't
+  /// have to tap Retry manually.
+  void _retryLastMessageIfFailed() {
+    final ProviderConfig? config = _lastUsedConfig;
+    final ChatThread? thread = currentThread;
+    if (config == null || thread == null || thread.messages.isEmpty) {
+      return;
+    }
+    final ChatMessage last = thread.messages.last;
+    if (last.role == ChatRole.assistant && last.isError && !last.isStreaming) {
+      retryMessage(
+        threadId: thread.id,
+        messageId: last.id,
+        config: config,
+      );
     }
   }
 
@@ -737,6 +758,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     _replaceThread(thread);
     _lastError = null;
     _isSending = true;
+    _lastUsedConfig = config;
     notifyListeners();
     await _persist();
 
