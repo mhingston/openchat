@@ -182,6 +182,11 @@ void main() {
         webPageBrowseService: WebPageBrowseService(
           isWebOverride: false,
           httpClient: MockClient((http.Request request) async {
+            // Return 404 for Jina Reader requests so the service falls back
+            // to direct HTML fetching (which these mocks provide).
+            if (request.url.host == 'r.jina.ai') {
+              return http.Response('', 404);
+            }
             if (request.url.toString() == 'https://example.com/openchat') {
               return http.Response(
                 '''

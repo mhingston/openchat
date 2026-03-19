@@ -115,8 +115,41 @@ class _HomeScreenState extends State<HomeScreen> {
                   settingsController: settingsController,
                 ),
               ),
+              if (chatController.searchStatus != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                  child: Row(
+                    children: <Widget>[
+                      SizedBox.square(
+                        dimension: 12,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.4),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        chatController.searchStatus!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface
+                                  .withValues(alpha: 0.5),
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  chatController.searchStatus != null ? 4 : 0,
+                  16,
+                  16,
+                ),
                 child: ChatComposer(
                   enabled: providerConfig.isValidForChat &&
                       !chatController.isSending,

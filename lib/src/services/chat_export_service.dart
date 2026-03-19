@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
+import '../models/attachment.dart';
 import '../models/chat_thread.dart';
 
 enum ExportFormat { json, markdown }
@@ -136,13 +137,24 @@ class ChatExportService {
           ..writeln(message.text.trim().isEmpty ? '_No text_' : message.text);
 
         if (message.attachments.isNotEmpty) {
-          buffer
-            ..writeln()
-            ..writeln('Attachments:');
+          buffer.writeln();
           for (final attachment in message.attachments) {
-            buffer.writeln(
-              '- ${attachment.name} (${attachment.mimeType}, ${attachment.sizeBytes} bytes)',
-            );
+            final String? inlineData = attachment.thumbnailBase64 ??
+                (attachment.isImage ? attachment.base64Data : null);
+            if (inlineData != null) {
+              buffer
+                ..writeln(
+                  '![${attachment.name}](data:${attachment.mimeType};base64,$inlineData)',
+                )
+                ..writeln()
+                ..writeln(
+                  '_${attachment.name} (${attachment.mimeType}, ${attachment.sizeBytes} bytes)_',
+                );
+            } else {
+              buffer.writeln(
+                '- ${attachment.name} (${attachment.mimeType}, ${attachment.sizeBytes} bytes)',
+              );
+            }
           }
         }
 

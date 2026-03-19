@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../models/attachment.dart';
@@ -33,12 +35,14 @@ class ChatController extends ChangeNotifier {
   bool _initialized = false;
   bool _isSending = false;
   String? _lastError;
+  String? _searchStatus;
   int _nextLocalId = 0;
 
   List<ChatThread> get threads => List<ChatThread>.unmodifiable(_threads);
   bool get initialized => _initialized;
   bool get isSending => _isSending;
   String? get lastError => _lastError;
+  String? get searchStatus => _searchStatus;
   bool get hasThreads => _threads.isNotEmpty;
 
   ChatThread? get currentThread {
@@ -393,6 +397,7 @@ class ChatController extends ChangeNotifier {
       _selectedThreadId = thread.id;
     }
 
+    final bool isFirstExchange = thread.messages.isEmpty;
     final DateTime now = DateTime.now();
     final ChatMessage userMessage = ChatMessage(
       id: _newId('message'),
@@ -431,6 +436,7 @@ class ChatController extends ChangeNotifier {
       assistantMessage: assistantMessage,
       config: config,
       useWebSearch: useWebSearch,
+      autoTitle: isFirstExchange,
     );
   }
 
@@ -717,6 +723,7 @@ class ChatController extends ChangeNotifier {
     required ChatMessage assistantMessage,
     required ProviderConfig config,
     bool useWebSearch = false,
+    bool autoTitle = false,
   }) async {
     _replaceThread(thread);
     _lastError = null;
@@ -725,7 +732,8 @@ class ChatController extends ChangeNotifier {
     await _persist();
 
     try {
-      final List<ChatMessage> requestMessages = await _buildRequestMessages(
+      final (List<ChatMessage> requestMessages, List<String> sources) =
+          await _buildRequestMessages(
         thread: thread,
         assistantMessage: assistantMessage,
         useWebSearch: useWebSearch,
@@ -752,9 +760,17 @@ class ChatController extends ChangeNotifier {
               return message.copyWith(
                 text: sanitizedText,
                 isStreaming: false,
+                sources: sources,
               );
             },
           );
+          if (autoTitle) {
+            unawaited(_tryAutoGenerateTitle(
+              threadId: thread.id,
+              assistantMessageId: assistantMessage.id,
+              config: config,
+            ));
+          }
         } else {
           _updateMessage(
             threadId: thread.id,
@@ -782,13 +798,14 @@ class ChatController extends ChangeNotifier {
       notifyListeners();
     } finally {
       _isSending = false;
+      _searchStatus = null;
       _sortThreads();
       await _persist();
       notifyListeners();
     }
   }
 
-  Future<List<ChatMessage>> _buildRequestMessages({
+  Future<(List<ChatMessage>, List<String>)> _buildRequestMessages({
     required ChatThread thread,
     required ChatMessage assistantMessage,
     required bool useWebSearch,
@@ -798,7 +815,7 @@ class ChatController extends ChangeNotifier {
     )..removeWhere((ChatMessage message) => message.id == assistantMessage.id);
 
     if (!useWebSearch) {
-      return requestMessages;
+      return (requestMessages, const <String>[]);
     }
 
     ChatMessage? latestUserMessage;
@@ -810,20 +827,37 @@ class ChatController extends ChangeNotifier {
       }
     }
     if (latestUserMessage == null || latestUserMessage.text.trim().isEmpty) {
-      return requestMessages;
+      return (requestMessages, const <String>[]);
     }
+
+    _searchStatus = 'Searching the web…';
+    notifyListeners();
 
     final List<WebSearchResult> results = await _webSearchService.search(
       latestUserMessage.text,
     );
     if (results.isEmpty) {
-      return requestMessages;
+      _searchStatus = null;
+      notifyListeners();
+      return (requestMessages, const <String>[]);
     }
+
+    _searchStatus = 'Browsing pages…';
+    notifyListeners();
 
     final List<WebPageExcerpt> excerpts = await _webPageBrowseService.browse(
       results,
       query: latestUserMessage.text,
     );
+
+    _searchStatus = null;
+    notifyListeners();
+
+    final List<String> sources = <String>[
+      for (final WebSearchResult r in results) r.url,
+      for (final WebPageExcerpt e in excerpts)
+        if (!results.any((WebSearchResult r) => r.url == e.url)) e.url,
+    ];
 
     final ChatMessage searchContextMessage = ChatMessage(
       id: _newId('message'),
@@ -839,7 +873,38 @@ class ChatController extends ChangeNotifier {
       isError: false,
     );
 
-    return <ChatMessage>[searchContextMessage, ...requestMessages];
+    return (<ChatMessage>[searchContextMessage, ...requestMessages], sources);
+  }
+
+  Future<void> _tryAutoGenerateTitle({
+    required String threadId,
+    required String assistantMessageId,
+    required ProviderConfig config,
+  }) async {
+    final ChatThread? thread = _threadById(threadId);
+    if (thread == null || thread.messages.length != 2) {
+      return;
+    }
+    final ChatMessage userMsg = thread.messages[0];
+    final ChatMessage assistantMsg = thread.messages[1];
+    if (userMsg.role != ChatRole.user ||
+        assistantMsg.role != ChatRole.assistant ||
+        assistantMsg.isError ||
+        assistantMsg.text.trim().isEmpty ||
+        userMsg.text.trim().isEmpty) {
+      return;
+    }
+
+    final String? generatedTitle = await _apiClient.generateTitle(
+      config: config,
+      userMessage: userMsg.text,
+      assistantMessage: assistantMsg.text,
+    );
+    if (generatedTitle == null || generatedTitle.isEmpty) {
+      return;
+    }
+
+    await renameThread(threadId, generatedTitle);
   }
 
   String _sanitizeAssistantOutput(String text) {

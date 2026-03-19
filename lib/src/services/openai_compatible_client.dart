@@ -228,6 +228,81 @@ class OpenAiCompatibleClient {
     throw primaryError ?? Exception('No models were returned by the provider.');
   }
 
+  /// Generates a short conversation title using a single non-streaming request.
+  /// Returns null on any failure so the caller can ignore it gracefully.
+  Future<String?> generateTitle({
+    required ProviderConfig config,
+    required String userMessage,
+    required String assistantMessage,
+  }) async {
+    if (!config.isValidForChat) {
+      return null;
+    }
+    try {
+      final String corsProxyUrl = _resolvedCorsProxyUrl();
+      final Uri uri = config.usesOllamaApi
+          ? _ollamaChatUri(config, corsProxyUrl: corsProxyUrl)
+          : _appendedUri(
+              config.normalizedBaseUrl,
+              <String>['chat', 'completions'],
+              corsProxyUrl: corsProxyUrl,
+            );
+
+      final String userSnippet = userMessage.length > 300
+          ? '${userMessage.substring(0, 300)}…'
+          : userMessage;
+      final String assistantSnippet = assistantMessage.length > 300
+          ? '${assistantMessage.substring(0, 300)}…'
+          : assistantMessage;
+      const String prompt =
+          'In 6 words or fewer, write a title for this conversation. '
+          'Output only the title text — no quotes, no trailing punctuation.';
+
+      final Map<String, dynamic> payload = <String, dynamic>{
+        'model': config.model.trim(),
+        'temperature': 0.3,
+        'stream': false,
+        'max_tokens': 20,
+        'messages': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'role': 'user',
+            'content':
+                '$prompt\n\nUser: $userSnippet\nAssistant: $assistantSnippet',
+          },
+        ],
+      };
+
+      final http.Response response = await _httpClient
+          .post(
+            uri,
+            headers: _headers(config),
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return null;
+      }
+
+      final Object? decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        return null;
+      }
+
+      final String content = config.usesOllamaApi
+          ? _extractOllamaMessageContent(decoded)
+          : _extractMessageContent(decoded);
+
+      final String title = content
+          .trim()
+          .replaceAll(RegExp(r'''^["']+|["']+$'''), '')
+          .trim();
+      return title.isEmpty ? null : title;
+    } catch (_) {
+      return null;
+    }
+  }
+
   void dispose() {
     if (_ownsClient) {
       _httpClient.close();

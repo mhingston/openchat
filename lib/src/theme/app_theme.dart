@@ -221,8 +221,8 @@ class AppTheme {
           side: BorderSide(color: _darkPalette.border),
         ),
       ),
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: Colors.transparent,
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: _darkPalette.surfaceRaised,
       ),
       textTheme: const TextTheme(
         headlineMedium: TextStyle(
@@ -317,8 +317,8 @@ class AppTheme {
           side: BorderSide(color: _lightPalette.border),
         ),
       ),
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: Colors.transparent,
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: _lightPalette.surfaceRaised,
       ),
     );
   }

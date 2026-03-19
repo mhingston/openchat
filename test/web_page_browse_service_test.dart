@@ -10,6 +10,10 @@ void main() {
     final WebPageBrowseService service = WebPageBrowseService(
       isWebOverride: false,
       httpClient: MockClient((http.Request request) async {
+        // Return 404 for Jina Reader requests so the service falls back to HTML.
+        if (request.url.host == 'r.jina.ai') {
+          return http.Response('', 404);
+        }
         requestedUri = request.url;
         return http.Response(
           '''
@@ -60,6 +64,11 @@ void main() {
       isWebOverride: true,
       webProxyUrl: 'http://127.0.0.1:8081',
       httpClient: MockClient((http.Request request) async {
+        // Reject proxied Jina requests so the service falls back to direct HTML.
+        if (request.url.queryParameters['url']?.contains('r.jina.ai') ==
+            true) {
+          return http.Response('', 404);
+        }
         requestedUri = request.url;
         return http.Response(
           '<html><head><title>Proxy test</title></head><body>Ok</body></html>',
@@ -199,5 +208,47 @@ void main() {
       excerpts.any((WebPageExcerpt excerpt) => excerpt.url.endsWith('/story-2')),
       isTrue,
     );
+  });
+
+  test('browse uses Jina Reader for clean content when available', () async {
+    final WebPageBrowseService service = WebPageBrowseService(
+      isWebOverride: false,
+      httpClient: MockClient((http.Request request) async {
+        if (request.url.host == 'r.jina.ai') {
+          return http.Response(
+            '''
+Title: Clean Article Title
+URL Source: https://example.com/article
+Published Time: 2026-01-01
+
+This is the clean article body extracted by Jina Reader.
+It contains useful content without HTML noise.
+''',
+            200,
+          );
+        }
+        // HTML fallback should not be called when Jina succeeds.
+        return http.Response('<html><body>Raw HTML</body></html>', 200);
+      }),
+    );
+
+    final List<WebPageExcerpt> excerpts = await service.browse(
+      const <WebSearchResult>[
+        WebSearchResult(
+          title: 'Example result',
+          url: 'https://example.com/article',
+          snippet: 'Snippet',
+        ),
+      ],
+    );
+
+    expect(excerpts, hasLength(1));
+    expect(excerpts.single.title, 'Clean Article Title');
+    expect(
+      excerpts.single.excerpt,
+      contains('This is the clean article body extracted by Jina Reader.'),
+    );
+    expect(excerpts.single.excerpt, isNot(contains('Title:')));
+    expect(excerpts.single.excerpt, isNot(contains('URL Source:')));
   });
 }

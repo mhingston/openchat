@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
@@ -266,6 +268,11 @@ class AttachmentStore {
       bytes: bytes,
     );
 
+    String? thumbnailBase64;
+    if (kind == AttachmentKind.image) {
+      thumbnailBase64 = await _generateThumbnailBase64(bytes);
+    }
+
     return ChatAttachment(
       id: id,
       name: name,
@@ -275,6 +282,7 @@ class AttachmentStore {
       previewText: previewText,
       createdAt: createdAt,
       localPath: storedPath,
+      thumbnailBase64: thumbnailBase64,
     );
   }
 
@@ -425,5 +433,28 @@ class AttachmentStore {
       return '${(sizeBytes / 1024).toStringAsFixed(1)} KB';
     }
     return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  static const int _thumbnailMaxWidth = 200;
+
+  Future<String?> _generateThumbnailBase64(List<int> bytes) async {
+    try {
+      final ui.Codec codec = await ui.instantiateImageCodec(
+        Uint8List.fromList(bytes),
+        targetWidth: _thumbnailMaxWidth,
+      );
+      final ui.FrameInfo frame = await codec.getNextFrame();
+      final ByteData? pngBytes = await frame.image.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+      frame.image.dispose();
+      codec.dispose();
+      if (pngBytes == null) {
+        return null;
+      }
+      return base64Encode(pngBytes.buffer.asUint8List());
+    } catch (_) {
+      return null;
+    }
   }
 }

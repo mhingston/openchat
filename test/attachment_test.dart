@@ -16,6 +16,7 @@ void main() {
         createdAt: createdAt,
         localPath: '/tmp/photo.png',
         base64Data: 'YWJj',
+        thumbnailBase64: 'dGh1bWI=',
       );
 
       final Map<String, dynamic> json = attachment.toJson();
@@ -23,6 +24,8 @@ void main() {
 
       expect(decoded.localPath, '/tmp/photo.png');
       expect(decoded.base64Data, 'YWJj');
+      expect(decoded.thumbnailBase64, 'dGh1bWI=');
+      expect(decoded.hasThumbnail, isTrue);
       expect(decoded.kind, AttachmentKind.image);
       expect(decoded.createdAt, createdAt);
     });
@@ -43,6 +46,8 @@ void main() {
       expect(decoded.kind, AttachmentKind.note);
       expect(decoded.localPath, isNull);
       expect(decoded.base64Data, isNull);
+      expect(decoded.thumbnailBase64, isNull);
+      expect(decoded.hasThumbnail, isFalse);
       expect(decoded.previewText, 'Legacy preview');
     });
   });

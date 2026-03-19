@@ -18,6 +18,7 @@ class ChatMessage {
     required this.attachments,
     required this.isStreaming,
     required this.isError,
+    this.sources = const <String>[],
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
@@ -25,6 +26,10 @@ class ChatMessage {
         json['attachments'] as List<dynamic>? ?? <dynamic>[];
     final String? legacyErrorText = json['errorText'] as String?;
     final String text = json['text'] as String? ?? '';
+    final List<String> sources = (json['sources'] as List<dynamic>?)
+            ?.whereType<String>()
+            .toList() ??
+        const <String>[];
 
     return ChatMessage(
       id: json['id'] as String? ?? '',
@@ -42,6 +47,7 @@ class ChatMessage {
       isStreaming: json['isStreaming'] as bool? ?? false,
       isError: json['isError'] as bool? ??
           (legacyErrorText != null && legacyErrorText.isNotEmpty),
+      sources: sources,
     );
   }
 
@@ -52,6 +58,7 @@ class ChatMessage {
   final List<ChatAttachment> attachments;
   final bool isStreaming;
   final bool isError;
+  final List<String> sources;
 
   bool get hasContent => text.trim().isNotEmpty || attachments.isNotEmpty;
 
@@ -63,6 +70,7 @@ class ChatMessage {
     List<ChatAttachment>? attachments,
     bool? isStreaming,
     bool? isError,
+    List<String>? sources,
   }) {
     return ChatMessage(
       id: id ?? this.id,
@@ -72,6 +80,7 @@ class ChatMessage {
       attachments: attachments ?? this.attachments,
       isStreaming: isStreaming ?? this.isStreaming,
       isError: isError ?? this.isError,
+      sources: sources ?? this.sources,
     );
   }
 
@@ -85,6 +94,7 @@ class ChatMessage {
           attachments.map((ChatAttachment item) => item.toJson()).toList(),
       'isStreaming': isStreaming,
       'isError': isError,
+      if (sources.isNotEmpty) 'sources': sources,
     };
   }
 }

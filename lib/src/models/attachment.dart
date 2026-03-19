@@ -18,6 +18,7 @@ class ChatAttachment {
     required this.createdAt,
     this.localPath,
     this.base64Data,
+    this.thumbnailBase64,
   });
 
   factory ChatAttachment.fromJson(Map<String, dynamic> json) {
@@ -33,6 +34,7 @@ class ChatAttachment {
       localPath: _readOptionalString(json['localPath']),
       base64Data: _readOptionalString(json['base64Data']) ??
           _readOptionalString(json['data']),
+      thumbnailBase64: _readOptionalString(json['thumbnailBase64']),
     );
   }
 
@@ -45,6 +47,7 @@ class ChatAttachment {
   final DateTime createdAt;
   final String? localPath;
   final String? base64Data;
+  final String? thumbnailBase64;
 
   bool get isImage => kind == AttachmentKind.image;
 
@@ -55,6 +58,9 @@ class ChatAttachment {
   bool get hasBase64Data => base64Data != null && base64Data!.trim().isNotEmpty;
 
   bool get isWebStored => hasBase64Data && !hasLocalPath;
+
+  bool get hasThumbnail =>
+      thumbnailBase64 != null && thumbnailBase64!.trim().isNotEmpty;
 
   ChatAttachment copyWith({
     String? id,
@@ -68,6 +74,8 @@ class ChatAttachment {
     bool clearLocalPath = false,
     String? base64Data,
     bool clearBase64Data = false,
+    String? thumbnailBase64,
+    bool clearThumbnailBase64 = false,
   }) {
     return ChatAttachment(
       id: id ?? this.id,
@@ -79,6 +87,9 @@ class ChatAttachment {
       createdAt: createdAt ?? this.createdAt,
       localPath: clearLocalPath ? null : (localPath ?? this.localPath),
       base64Data: clearBase64Data ? null : (base64Data ?? this.base64Data),
+      thumbnailBase64: clearThumbnailBase64
+          ? null
+          : (thumbnailBase64 ?? this.thumbnailBase64),
     );
   }
 
@@ -94,6 +105,8 @@ class ChatAttachment {
       if (localPath != null && localPath!.isNotEmpty) 'localPath': localPath,
       if (base64Data != null && base64Data!.isNotEmpty)
         'base64Data': base64Data,
+      if (thumbnailBase64 != null && thumbnailBase64!.isNotEmpty)
+        'thumbnailBase64': thumbnailBase64,
     };
   }
 

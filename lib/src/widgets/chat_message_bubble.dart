@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/attachment.dart';
 import '../models/chat_message.dart';
@@ -147,6 +149,23 @@ class ChatMessageBubble extends StatelessWidget {
                         ),
                   ),
                 ],
+                if (!message.isStreaming &&
+                    message.role == ChatRole.assistant &&
+                    message.text.trim().isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      _InlineCopyButton(text: message.text),
+                    ],
+                  ),
+                ],
+                if (message.sources.isNotEmpty && !message.isStreaming) ...<Widget>[
+                  const SizedBox(height: 8),
+                  Divider(height: 1, color: context.openChatPalette.border),
+                  const SizedBox(height: 8),
+                  _SourcesFooter(sources: message.sources),
+                ],
               ],
             ),
           ),
@@ -206,6 +225,112 @@ class ChatMessageBubble extends StatelessWidget {
 }
 
 enum _MessageAction { copy, edit, fork, retry, delete }
+
+class _InlineCopyButton extends StatefulWidget {
+  const _InlineCopyButton({required this.text});
+
+  final String text;
+
+  @override
+  State<_InlineCopyButton> createState() => _InlineCopyButtonState();
+}
+
+class _InlineCopyButtonState extends State<_InlineCopyButton> {
+  bool _copied = false;
+  Timer? _resetTimer;
+
+  @override
+  void dispose() {
+    _resetTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color = _copied
+        ? context.openChatPalette.success
+        : context.openChatPalette.mutedText;
+
+    return TextButton.icon(
+      onPressed: _copy,
+      icon: Icon(
+        _copied ? Icons.check_rounded : Icons.content_copy_outlined,
+        size: 14,
+      ),
+      label: Text(_copied ? 'Copied' : 'Copy'),
+      style: TextButton.styleFrom(
+        foregroundColor: color,
+        minimumSize: Size.zero,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        textStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w500,
+            ),
+      ),
+    );
+  }
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: widget.text));
+    if (!mounted) return;
+    _resetTimer?.cancel();
+    setState(() => _copied = true);
+    _resetTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+}
+
+class _SourcesFooter extends StatelessWidget {
+  const _SourcesFooter({required this.sources});
+
+  final List<String> sources;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          'Sources',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: context.openChatPalette.mutedText,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.4,
+              ),
+        ),
+        const SizedBox(height: 4),
+        ...sources.asMap().entries.map(
+          (MapEntry<int, String> entry) => Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  '[${entry.key + 1}] ',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: context.openChatPalette.mutedText,
+                      ),
+                ),
+                Expanded(
+                  child: SelectableText(
+                    entry.value,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          decoration: TextDecoration.underline,
+                          decorationColor:
+                              Theme.of(context).colorScheme.primary,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class _MessageBody extends StatelessWidget {
   const _MessageBody({required this.message});
@@ -290,9 +415,29 @@ class _AttachmentImage extends StatelessWidget {
         height: 120,
         width: double.infinity,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _buildFallback(context),
+        errorBuilder: (_, __, ___) => _buildThumbnailOrFallback(context),
       ),
     );
+  }
+
+  Widget _buildThumbnailOrFallback(BuildContext context) {
+    if (attachment.hasThumbnail) {
+      try {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Image(
+            image: MemoryImage(base64Decode(attachment.thumbnailBase64!)),
+            height: 120,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildFallback(context),
+          ),
+        );
+      } on FormatException {
+        // Fall through to placeholder fallback.
+      }
+    }
+    return _buildFallback(context);
   }
 
   ImageProvider<Object>? _resolveImageProvider() {
@@ -300,12 +445,20 @@ class _AttachmentImage extends StatelessWidget {
       try {
         return MemoryImage(base64Decode(attachment.base64Data!));
       } on FormatException {
-        return null;
+        // Fall through to next option.
       }
     }
 
     if (!kIsWeb && attachment.hasLocalPath) {
       return attachmentFileImageProvider(attachment.localPath!);
+    }
+
+    if (attachment.hasThumbnail) {
+      try {
+        return MemoryImage(base64Decode(attachment.thumbnailBase64!));
+      } on FormatException {
+        return null;
+      }
     }
 
     return null;

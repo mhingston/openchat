@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 
 import 'voice_input_backend.dart';
 import 'voice_input_backend_stub.dart'
-    if (dart.library.js_interop) 'voice_input_backend_web.dart' as backend_impl;
+    if (dart.library.js_interop) 'voice_input_backend_web.dart'
+    if (dart.library.io) 'voice_input_backend_native.dart' as backend_impl;
 
 const Object _voiceInputStateUnchanged = Object();
 

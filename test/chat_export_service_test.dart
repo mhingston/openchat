@@ -32,6 +32,8 @@ void main() {
       expect(content, contains('### USER'));
       expect(content, contains('### ASSISTANT'));
       expect(content, contains('diagram.png'));
+      // Image attachment should be rendered as an inline markdown image tag.
+      expect(content, contains('![diagram.png](data:image/png;base64,'));
     });
 
     test('imports current-format JSON threads', () {

@@ -60,6 +60,24 @@ class WebPageBrowseService {
       }
 
       try {
+        // Try Jina Reader first for clean markdown content.
+        final String? jinaContent = await _fetchJinaContent(upstreamUri);
+        if (jinaContent != null) {
+          final WebPageExcerpt? excerpt = _extractExcerptFromMarkdown(
+            result,
+            jinaContent,
+            pageUrl: upstreamUri.toString(),
+            maxExcerptLength: maxExcerptLength,
+          );
+          if (excerpt != null) {
+            excerpts.add(excerpt);
+            fetchedUrls.add(excerpt.url);
+          }
+          // Jina provides high-quality content; skip link-following for this result.
+          continue;
+        }
+
+        // Fall back to HTML scraping with link-following.
         final String? html = await _fetchHtml(upstreamUri);
         if (html == null) {
           continue;
@@ -91,6 +109,25 @@ class WebPageBrowseService {
             in candidateLinks.take(maxLinksPerPage)) {
           if (followedPages >= maxFollowedPages ||
               fetchedUrls.contains(candidate.url.toString())) {
+            continue;
+          }
+
+          final String? linkedJinaContent =
+              await _fetchJinaContent(candidate.url);
+          if (linkedJinaContent != null) {
+            final WebPageExcerpt? linkedExcerpt = _extractExcerptFromMarkdown(
+              result,
+              linkedJinaContent,
+              pageUrl: candidate.url.toString(),
+              discoveredFromUrl: upstreamUri.toString(),
+              discoveredFromTitle: excerpt?.title ?? result.title,
+              maxExcerptLength: maxExcerptLength,
+            );
+            if (linkedExcerpt != null) {
+              excerpts.add(linkedExcerpt);
+              fetchedUrls.add(linkedExcerpt.url);
+              followedPages += 1;
+            }
             continue;
           }
 
@@ -281,6 +318,110 @@ class WebPageBrowseService {
       discoveredFromUrl: discoveredFromUrl,
       discoveredFromTitle: discoveredFromTitle,
     );
+  }
+
+  /// Fetches clean markdown content from the Jina Reader API.
+  /// Returns null if the request fails, so callers can fall back to HTML scraping.
+  Future<String?> _fetchJinaContent(Uri originalUri) async {
+    try {
+      final Uri jinaUri = Uri.parse('https://r.jina.ai/${originalUri.toString()}');
+      final Uri requestUri = _isWeb ? _proxyUri(jinaUri) : jinaUri;
+      final http.Response response = await _httpClient.get(
+        requestUri,
+        headers: const <String, String>{
+          'Accept': 'text/plain,text/markdown',
+          'X-Return-Format': 'markdown',
+        },
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return null;
+      }
+      final String body = response.body.trim();
+      return body.isEmpty ? null : body;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Extracts a [WebPageExcerpt] from Jina Reader markdown output.
+  WebPageExcerpt? _extractExcerptFromMarkdown(
+    WebSearchResult result,
+    String markdown, {
+    required String pageUrl,
+    String? discoveredFromUrl,
+    String? discoveredFromTitle,
+    required int maxExcerptLength,
+  }) {
+    final String title = _extractJinaTitle(markdown);
+    final String excerpt = _extractJinaExcerpt(
+      markdown,
+      maxExcerptLength: maxExcerptLength,
+    );
+    if (excerpt.isEmpty) {
+      return null;
+    }
+    return WebPageExcerpt(
+      searchResult: result,
+      url: pageUrl,
+      title: title.isEmpty ? result.title : title,
+      excerpt: excerpt,
+      discoveredFromUrl: discoveredFromUrl,
+      discoveredFromTitle: discoveredFromTitle,
+    );
+  }
+
+  /// Extracts the page title from a Jina Reader markdown response.
+  /// Jina prefixes responses with "Title: <title>" on the first non-blank line.
+  String _extractJinaTitle(String markdown) {
+    for (final String line in markdown.split('\n')) {
+      final String trimmed = line.trim();
+      if (trimmed.isEmpty) continue;
+      if (trimmed.toLowerCase().startsWith('title:')) {
+        return trimmed.substring(6).trim();
+      }
+      break;
+    }
+    return '';
+  }
+
+  /// Extracts usable content from a Jina Reader markdown response,
+  /// skipping the metadata header lines (Title, URL Source, Published Time).
+  String _extractJinaExcerpt(String markdown, {required int maxExcerptLength}) {
+    final List<String> lines = markdown.split('\n');
+    bool headerDone = false;
+    final StringBuffer buffer = StringBuffer();
+    for (final String line in lines) {
+      final String trimmed = line.trim();
+      if (!headerDone) {
+        final String lower = trimmed.toLowerCase();
+        if (trimmed.isEmpty ||
+            lower.startsWith('title:') ||
+            lower.startsWith('url source:') ||
+            lower.startsWith('published time:') ||
+            lower.startsWith('description:') ||
+            lower.startsWith('markdown content:')) {
+          continue;
+        }
+        headerDone = true;
+      }
+      buffer.write('$trimmed ');
+      if (buffer.length >= maxExcerptLength * 2) {
+        break;
+      }
+    }
+
+    final String text = buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (text.length <= maxExcerptLength) {
+      return text;
+    }
+    final int preferredCut = text.lastIndexOf('. ', maxExcerptLength);
+    final int fallbackCut = text.lastIndexOf(' ', maxExcerptLength);
+    final int cutIndex = preferredCut > 200
+        ? preferredCut + 1
+        : fallbackCut > 200
+            ? fallbackCut
+            : maxExcerptLength;
+    return '${text.substring(0, cutIndex).trim()}…';
   }
 
   Future<String?> _fetchHtml(Uri upstreamUri) async {
