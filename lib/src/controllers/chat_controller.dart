@@ -777,6 +777,11 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     await _persist();
 
     try {
+      // Start the foreground service (and acquire WiFi/wake locks) as early as
+      // possible — before web search — so Android cannot cut the network
+      // connection if the user backgrounds the app while a request is in flight.
+      await RequestForegroundService.start();
+
       final (List<ChatMessage> requestMessages, List<String> sources) =
           await _buildRequestMessages(
         thread: thread,
@@ -784,68 +789,98 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         useWebSearch: useWebSearch,
       );
 
-      await RequestForegroundService.start();
       // Accumulate the raw (unsanitised) response so that _sanitizeAssistantOutput
       // always operates on the full text.  Storing only the sanitised form between
       // chunks loses structural markers like <think> before the matching </think>
       // has arrived, causing think-block content to leak into the displayed text.
       final StringBuffer rawBuffer = StringBuffer();
-      await for (final ChatCompletionChunk chunk
-          in _apiClient.streamChatCompletion(
-        config: config,
-        messages: requestMessages,
-      )) {
-        if (chunk.isDone) {
-          final String sanitizedText =
-              _sanitizeAssistantOutput(rawBuffer.toString());
-          _updateMessage(
-            threadId: thread.id,
-            messageId: assistantMessage.id,
-            updater: (ChatMessage message) {
-              if (sanitizedText.trim().isEmpty) {
-                return message.copyWith(
-                  text: 'No response received.',
-                  isStreaming: false,
-                  isError: true,
-                );
-              }
-              return message.copyWith(
-                text: sanitizedText,
-                isStreaming: false,
-                sources: sources,
+      // On Android, Samsung's battery optimiser can cut DNS even with a foreground
+      // service.  Retry once after a short pause before surfacing the error.
+      const int maxAttempts = 2;
+      for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          await for (final ChatCompletionChunk chunk
+              in _apiClient.streamChatCompletion(
+            config: config,
+            messages: requestMessages,
+          )) {
+            if (chunk.isDone) {
+              final String sanitizedText =
+                  _sanitizeAssistantOutput(rawBuffer.toString());
+              _updateMessage(
+                threadId: thread.id,
+                messageId: assistantMessage.id,
+                updater: (ChatMessage message) {
+                  if (sanitizedText.trim().isEmpty) {
+                    return message.copyWith(
+                      text: 'No response received.',
+                      isStreaming: false,
+                      isError: true,
+                    );
+                  }
+                  return message.copyWith(
+                    text: sanitizedText,
+                    isStreaming: false,
+                    sources: sources,
+                  );
+                },
               );
-            },
-          );
-          if (autoTitle) {
-            unawaited(_tryAutoGenerateTitle(
-              threadId: thread.id,
-              assistantMessageId: assistantMessage.id,
-              config: config,
-            ));
+              if (autoTitle) {
+                unawaited(_tryAutoGenerateTitle(
+                  threadId: thread.id,
+                  assistantMessageId: assistantMessage.id,
+                  config: config,
+                ));
+              }
+            } else {
+              rawBuffer.write(chunk.delta);
+              final String sanitizedText =
+                  _sanitizeAssistantOutput(rawBuffer.toString());
+              _updateMessage(
+                threadId: thread.id,
+                messageId: assistantMessage.id,
+                updater: (ChatMessage message) => message.copyWith(
+                  text: sanitizedText,
+                  isStreaming: true,
+                ),
+              );
+            }
+            notifyListeners();
           }
-        } else {
-          rawBuffer.write(chunk.delta);
-          final String sanitizedText =
-              _sanitizeAssistantOutput(rawBuffer.toString());
-          _updateMessage(
-            threadId: thread.id,
-            messageId: assistantMessage.id,
-            updater: (ChatMessage message) => message.copyWith(
-              text: sanitizedText,
-              isStreaming: true,
-            ),
-          );
+          break; // success — exit retry loop
+        } catch (error) {
+          final bool isNetworkError = error.toString().contains('SocketException') ||
+              error.toString().contains('Failed host lookup') ||
+              error.toString().contains('Connection refused') ||
+              error.toString().contains('Connection reset');
+          if (isNetworkError && attempt < maxAttempts) {
+            // Brief pause to let Android restore DNS after backgrounding.
+            await Future<void>.delayed(const Duration(seconds: 2));
+            rawBuffer.clear();
+            continue;
+          }
+          rethrow;
         }
-        notifyListeners();
       }
     } catch (error) {
       _lastError = error.toString();
+      final bool isNetworkError = error.toString().contains('SocketException') ||
+          error.toString().contains('Failed host lookup') ||
+          error.toString().contains('Connection refused') ||
+          error.toString().contains('Connection reset');
+      final String errorMessage = isNetworkError
+          ? 'Network error — the request could not complete.\n\n'
+            'If you backgrounded the app, Android may have cut the '
+            'connection. Try disabling battery optimisation for OpenChat '
+            'in Android Settings → Apps → OpenChat → Battery.\n\n'
+            '${error.toString()}'
+          : 'Unable to reach the provider right now. '
+            'Check settings and try again.\n\n${error.toString()}';
       _updateMessage(
         threadId: thread.id,
         messageId: assistantMessage.id,
         updater: (ChatMessage message) => message.copyWith(
-          text:
-              'Unable to reach the provider right now. Check settings and try again.\n\n${error.toString()}',
+          text: errorMessage,
           isStreaming: false,
           isError: true,
         ),
