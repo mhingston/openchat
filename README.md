@@ -20,7 +20,14 @@ OpenChat is a Flutter chat client with a ChatGPT-style interface, local conversa
 - Local conversation history with rename, duplicate/fork, delete (swipe-to-delete on mobile), pin, and search.
 - Export conversations as JSON or Markdown and import saved chat data.
 - Voice input on iOS, Android, and supported web browsers.
-- Optional DuckDuckGo-backed web search with Jina AI Reader for high-quality page content, plus multi-step link-following for live-web prompts. Web search preference is persisted across sessions.
+- Optional web search with a tiered provider stack that degrades gracefully based on which API keys are configured:
+  - **Tavily** (recommended) — single API call returns search results and full page content, handles JS-heavy sites and anti-bot protection.
+  - **Brave Search** — reliable JSON search results, replaces DuckDuckGo HTML scraping.
+  - **Firecrawl** — content extraction for JS-rendered pages and Cloudflare-protected sites.
+  - **Jina AI Reader** — higher rate limits when an API key is configured; used unauthenticated as a fallback.
+  - **DuckDuckGo + direct HTTP** — always-available fallback requiring no configuration.
+
+  API keys are optional and configured in Settings → Web Search. Multi-step link-following surfaces article content from news homepages. Web search preference is persisted across sessions.
 - Source URL citations shown inline on web-search-backed responses. URLs in assistant messages are tappable.
 - Auto-generated conversation titles after the first exchange.
 - Inline copy button on assistant messages.
@@ -82,6 +89,9 @@ The default allowlist already includes:
 - `ollama.com`
 - `api.duckduckgo.com`
 - `html.duckduckgo.com`
+- `api.tavily.com`
+- `api.search.brave.com`
+- `api.firecrawl.dev`
 
 All other public hostnames (including `r.jina.ai`) are permitted automatically via an IP-range check that blocks loopback, link-local, and RFC-1918 addresses.
 
@@ -93,10 +103,20 @@ Run static analysis:
 flutter analyze
 ```
 
-Run tests:
+Run tests (unit tests only — integration tests require live API credentials):
 
 ```bash
-flutter test
+flutter test $(find test -maxdepth 1 -name "*_test.dart" | sort | tr '\n' ' ')
+```
+
+Run integration/E2E tests against a live provider:
+
+```bash
+OPENCHAT_TEST_BASE_URL=https://ollama.com \
+OPENCHAT_TEST_API_KEY=<key> \
+OPENCHAT_TEST_MODEL=<model> \
+OPENCHAT_TEST_PRESET=ollama-cloud \
+flutter test test/integration/e2e_test.dart
 ```
 
 The repository also includes GitHub Actions that run both commands automatically on pushes and pull requests.
