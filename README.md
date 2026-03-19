@@ -1,6 +1,6 @@
 # OpenChat
 
-OpenChat is a Flutter chat client with a ChatGPT-style interface, local conversation history, configurable OpenAI-compatible providers, attachments, voice input on supported browsers, and optional web search/browsing support for questions that need live context.
+OpenChat is a Flutter chat client with a ChatGPT-style interface, local conversation history, configurable OpenAI-compatible providers, attachments, voice input, and optional web search/browsing support for questions that need live context.
 
 ## Screenshots
 
@@ -19,8 +19,10 @@ OpenChat is a Flutter chat client with a ChatGPT-style interface, local conversa
 - Attachment support for camera, photos, and files.
 - Local conversation history with rename, duplicate/fork, delete, pin, and search.
 - Export conversations as JSON or Markdown and import saved chat data.
-- Voice input on supported web browsers.
-- Optional DuckDuckGo-backed web search plus multi-step page browsing for live-web prompts.
+- Voice input on iOS, Android, and supported web browsers.
+- Optional DuckDuckGo-backed web search with Jina AI Reader for high-quality page content, plus multi-step link-following for live-web prompts.
+- Source URL citations shown inline on web-search-backed responses.
+- Auto-generated conversation titles after the first exchange.
 - Theme selection and desktop/web keyboard shortcuts.
 
 ## Local development
@@ -44,7 +46,7 @@ flutter run
 
 ### Run the web preview
 
-OpenChat uses a small local proxy during web development so the browser can call provider APIs and fetch public web pages without CORS issues.
+OpenChat uses a small local proxy during web development so the browser can call provider APIs and fetch public web pages (including Jina Reader at `r.jina.ai`) without CORS issues.
 
 Start the proxy:
 
@@ -57,6 +59,8 @@ Then start the app in web-server mode:
 ```bash
 flutter run -d web-server --web-hostname 127.0.0.1 --web-port 8101
 ```
+
+Open `http://127.0.0.1:8101` in your browser.
 
 By default the proxy listens on `http://127.0.0.1:8081/proxy`.
 
@@ -77,6 +81,8 @@ The default allowlist already includes:
 - `ollama.com`
 - `api.duckduckgo.com`
 - `html.duckduckgo.com`
+
+All other public hostnames (including `r.jina.ai`) are permitted automatically via an IP-range check that blocks loopback, link-local, and RFC-1918 addresses.
 
 ## Quality checks
 
