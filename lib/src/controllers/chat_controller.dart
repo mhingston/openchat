@@ -965,6 +965,22 @@ class ChatController extends ChangeNotifier {
       ),
       '',
     );
+    // Strip any trailing "Sources:" section the LLM appended — those are
+    // rendered by the _SourcesFooter widget in the bubble instead.
+    sanitized = sanitized.replaceAll(
+      RegExp(
+        r'\n\s*---\s*\n\s*\*?\*?Sources:?\*?\*?\s*\n[\s\S]*$',
+        caseSensitive: false,
+      ),
+      '',
+    );
+    sanitized = sanitized.replaceAll(
+      RegExp(
+        r'\n\s*\*?\*?Sources:?\*?\*?\s*\n(?:\s*\[\d+\][^\n]*\n?)+\s*$',
+        caseSensitive: false,
+      ),
+      '',
+    );
     sanitized = sanitized
         .replaceAll(RegExp(r'^\s*\[\s*$', multiLine: true), '')
         .replaceAll(RegExp(r'^\s*\]\s*$', multiLine: true), '')

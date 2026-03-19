@@ -214,11 +214,11 @@ class WebPageBrowseService {
       ..writeln(
         'Use fetched page excerpts as the primary evidence when they are available. '
         'Use search snippets for discovery or backup only. Cite every web-sourced claim '
-        'inline with bracketed source numbers like [1] or [1][2], and finish with a '
-        'clear "Sources:" list that includes each cited URL. The browsing has already '
-        'been completed for you, so answer directly from the evidence. Do not mention '
-        'tools, browsing steps, hidden reasoning, or emit tags like <think>, </think>, '
-        'tool_call(...), or tool_calls.',
+        'inline with bracketed source numbers like [1] or [1][2]. Do NOT include a '
+        '"Sources:" section in your response — sources are displayed separately by the UI. '
+        'The browsing has already been completed for you, so answer directly from the evidence. '
+        'Do not mention tools, browsing steps, hidden reasoning, or emit tags like <think>, '
+        '</think>, tool_call(...), or tool_calls.',
       )
       ..writeln()
       ..writeln(
