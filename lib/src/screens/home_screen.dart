@@ -367,10 +367,37 @@ class _HomeScreenState extends State<HomeScreen> {
         return SettingsSheet(
           providerConfig: settingsController.providerConfig,
           themeMode: settingsController.themeMode,
+          jinaApiKey: settingsController.jinaApiKey,
+          tavilyApiKey: settingsController.tavilyApiKey,
+          firecrawlApiKey: settingsController.firecrawlApiKey,
+          braveSearchApiKey: settingsController.braveSearchApiKey,
           onSave: (ProviderConfig providerConfig, ThemeMode themeMode) async {
             await settingsController.saveConfiguration(
               providerConfig: providerConfig,
               themeMode: themeMode,
+            );
+          },
+          onSaveWebSearch: (
+            String jinaApiKey,
+            String tavilyApiKey,
+            String firecrawlApiKey,
+            String braveSearchApiKey,
+          ) async {
+            final ChatController chatController =
+                context.read<ChatController>();
+            await settingsController.saveConfiguration(
+              providerConfig: settingsController.providerConfig,
+              themeMode: settingsController.themeMode,
+              jinaApiKey: jinaApiKey,
+              tavilyApiKey: tavilyApiKey,
+              firecrawlApiKey: firecrawlApiKey,
+              braveSearchApiKey: braveSearchApiKey,
+            );
+            chatController.configureWebSearch(
+              jinaApiKey: jinaApiKey,
+              tavilyApiKey: tavilyApiKey,
+              firecrawlApiKey: firecrawlApiKey,
+              braveSearchApiKey: braveSearchApiKey,
             );
           },
         );

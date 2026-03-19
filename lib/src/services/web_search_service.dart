@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -10,6 +12,8 @@ class WebSearchService {
     http.Client? httpClient,
     bool? isWebOverride,
     String webProxyUrl = _defaultWebSearchProxyUrl,
+    this.tavilyApiKey,
+    this.braveSearchApiKey,
   })  : _httpClient = httpClient ?? http.Client(),
         _ownsClient = httpClient == null,
         _isWeb = isWebOverride ?? kIsWeb,
@@ -19,6 +23,8 @@ class WebSearchService {
   final bool _ownsClient;
   final bool _isWeb;
   final String _webProxyUrl;
+  final String? tavilyApiKey;
+  final String? braveSearchApiKey;
 
   Future<List<WebSearchResult>> search(
     String query, {
@@ -29,28 +35,127 @@ class WebSearchService {
       return const <WebSearchResult>[];
     }
 
-    final Uri upstreamUri = Uri.https(
-      'html.duckduckgo.com',
-      '/html/',
-      <String, String>{'q': normalizedQuery},
-    );
-    final Uri requestUri = _isWeb ? _proxyUri(upstreamUri) : upstreamUri;
-
-    final http.Response response = await _httpClient.get(
-      requestUri,
-      headers: const <String, String>{
-        'Accept': 'text/html',
-        'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-    );
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(
-        'Web search failed (${response.statusCode}): ${response.body}',
-      );
+    if (tavilyApiKey != null && tavilyApiKey!.isNotEmpty) {
+      return _searchTavily(normalizedQuery, maxResults: maxResults);
     }
 
-    return _parseHtmlResults(response.body, maxResults: maxResults);
+    if (braveSearchApiKey != null && braveSearchApiKey!.isNotEmpty) {
+      return _searchBrave(normalizedQuery, maxResults: maxResults);
+    }
+
+    return _searchDuckDuckGo(normalizedQuery, maxResults: maxResults);
+  }
+
+  Future<List<WebSearchResult>> _searchTavily(
+    String query, {
+    required int maxResults,
+  }) async {
+    try {
+      final http.Response response = await _httpClient.post(
+        Uri.parse('https://api.tavily.com/search'),
+        headers: const <String, String>{
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(<String, dynamic>{
+          'api_key': tavilyApiKey,
+          'query': query,
+          'max_results': maxResults,
+        }),
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return const <WebSearchResult>[];
+      }
+      final Map<String, dynamic> data =
+          jsonDecode(response.body) as Map<String, dynamic>;
+      final List<dynamic> rawResults =
+          data['results'] as List<dynamic>? ?? <dynamic>[];
+      return rawResults.map((dynamic item) {
+        final Map<String, dynamic> r = item as Map<String, dynamic>;
+        return WebSearchResult(
+          title: r['title'] as String? ?? '',
+          url: r['url'] as String? ?? '',
+          snippet: r['content'] as String? ?? '',
+          source: 'Tavily',
+          content: r['content'] as String?,
+        );
+      }).toList();
+    } catch (_) {
+      return const <WebSearchResult>[];
+    }
+  }
+
+  Future<List<WebSearchResult>> _searchBrave(
+    String query, {
+    required int maxResults,
+  }) async {
+    try {
+      final Uri uri = Uri.https(
+        'api.search.brave.com',
+        '/res/v1/web/search',
+        <String, String>{'q': query, 'count': '$maxResults'},
+      );
+      final http.Response response = await _httpClient.get(
+        uri,
+        headers: <String, String>{
+          'Accept': 'application/json',
+          'Accept-Encoding': 'gzip',
+          'X-Subscription-Token': braveSearchApiKey!,
+        },
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return const <WebSearchResult>[];
+      }
+      final Map<String, dynamic> data =
+          jsonDecode(response.body) as Map<String, dynamic>;
+      final Map<String, dynamic>? web =
+          data['web'] as Map<String, dynamic>?;
+      final List<dynamic> rawResults =
+          web?['results'] as List<dynamic>? ?? <dynamic>[];
+      return rawResults.map((dynamic item) {
+        final Map<String, dynamic> r = item as Map<String, dynamic>;
+        return WebSearchResult(
+          title: r['title'] as String? ?? '',
+          url: r['url'] as String? ?? '',
+          snippet: r['description'] as String? ?? '',
+          source: 'Brave',
+        );
+      }).toList();
+    } catch (_) {
+      return const <WebSearchResult>[];
+    }
+  }
+
+  Future<List<WebSearchResult>> _searchDuckDuckGo(
+    String query, {
+    required int maxResults,
+  }) async {
+    try {
+      final Uri upstreamUri = Uri.https(
+        'html.duckduckgo.com',
+        '/html/',
+        <String, String>{'q': query},
+      );
+      final Uri requestUri = _isWeb ? _proxyUri(upstreamUri) : upstreamUri;
+
+      final http.Response response = await _httpClient.get(
+        requestUri,
+        headers: const <String, String>{
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept':
+              'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return const <WebSearchResult>[];
+      }
+
+      return _parseHtmlResults(response.body, maxResults: maxResults);
+    } catch (_) {
+      return const <WebSearchResult>[];
+    }
   }
 
   String formatResultsForContext(

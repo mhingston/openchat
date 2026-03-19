@@ -26,6 +26,10 @@ class SettingsController extends ChangeNotifier {
 
   ProviderConfig get providerConfig => _providerConfig;
   ThemeMode get themeMode => _appSettings.themeMode;
+  String get jinaApiKey => _appSettings.jinaApiKey;
+  String get tavilyApiKey => _appSettings.tavilyApiKey;
+  String get firecrawlApiKey => _appSettings.firecrawlApiKey;
+  String get braveSearchApiKey => _appSettings.braveSearchApiKey;
   bool get initialized => _initialized;
   bool get hasConfiguredProvider => _providerConfig.isValidForChat;
   List<String> get availableModels =>
@@ -45,6 +49,10 @@ class SettingsController extends ChangeNotifier {
   Future<void> saveConfiguration({
     required ProviderConfig providerConfig,
     required ThemeMode themeMode,
+    String? jinaApiKey,
+    String? tavilyApiKey,
+    String? firecrawlApiKey,
+    String? braveSearchApiKey,
   }) async {
     final bool providerChanged =
         providerConfig.cacheKey != _providerConfig.cacheKey;
@@ -56,6 +64,10 @@ class SettingsController extends ChangeNotifier {
       themeMode: themeMode,
       cachedProviderKey: _providerConfig.cacheKey,
       cachedModels: List<String>.from(_availableModels),
+      jinaApiKey: jinaApiKey,
+      tavilyApiKey: tavilyApiKey,
+      firecrawlApiKey: firecrawlApiKey,
+      braveSearchApiKey: braveSearchApiKey,
     );
     await _providerConfigStore.save(providerConfig);
     await _appSettingsStore.save(_appSettings);

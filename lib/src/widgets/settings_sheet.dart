@@ -12,12 +12,27 @@ class SettingsSheet extends StatefulWidget {
     required this.providerConfig,
     required this.themeMode,
     required this.onSave,
+    required this.jinaApiKey,
+    required this.tavilyApiKey,
+    required this.firecrawlApiKey,
+    required this.braveSearchApiKey,
+    required this.onSaveWebSearch,
   });
 
   final ProviderConfig providerConfig;
   final ThemeMode themeMode;
   final Future<void> Function(
       ProviderConfig providerConfig, ThemeMode themeMode) onSave;
+  final String jinaApiKey;
+  final String tavilyApiKey;
+  final String firecrawlApiKey;
+  final String braveSearchApiKey;
+  final Future<void> Function(
+    String jinaApiKey,
+    String tavilyApiKey,
+    String firecrawlApiKey,
+    String braveSearchApiKey,
+  ) onSaveWebSearch;
 
   @override
   State<SettingsSheet> createState() => _SettingsSheetState();
@@ -40,6 +55,14 @@ class _SettingsSheetState extends State<SettingsSheet> {
   bool _fetchingModels = false;
   bool _saving = false;
   bool _obscureApiKey = true;
+  late final TextEditingController _jinaApiKeyController;
+  late final TextEditingController _tavilyApiKeyController;
+  late final TextEditingController _firecrawlApiKeyController;
+  late final TextEditingController _braveSearchApiKeyController;
+  bool _obscureJinaApiKey = true;
+  bool _obscureTavilyApiKey = true;
+  bool _obscureFirecrawlApiKey = true;
+  bool _obscureBraveSearchApiKey = true;
 
   @override
   void initState() {
@@ -56,6 +79,12 @@ class _SettingsSheetState extends State<SettingsSheet> {
     _temperature = widget.providerConfig.temperature;
     _streamResponses = widget.providerConfig.streamResponses;
     _themeMode = widget.themeMode;
+    _jinaApiKeyController = TextEditingController(text: widget.jinaApiKey);
+    _tavilyApiKeyController = TextEditingController(text: widget.tavilyApiKey);
+    _firecrawlApiKeyController =
+        TextEditingController(text: widget.firecrawlApiKey);
+    _braveSearchApiKeyController =
+        TextEditingController(text: widget.braveSearchApiKey);
   }
 
   @override
@@ -65,6 +94,10 @@ class _SettingsSheetState extends State<SettingsSheet> {
     _apiKeyController.dispose();
     _modelController.dispose();
     _systemPromptController.dispose();
+    _jinaApiKeyController.dispose();
+    _tavilyApiKeyController.dispose();
+    _firecrawlApiKeyController.dispose();
+    _braveSearchApiKeyController.dispose();
     super.dispose();
   }
 
@@ -390,6 +423,123 @@ class _SettingsSheetState extends State<SettingsSheet> {
                     },
                   ),
                   const SizedBox(height: 24),
+                  const SizedBox(height: 12),
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    title: Text(
+                      'Web Search APIs (optional)',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    children: <Widget>[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _tavilyApiKeyController,
+                        obscureText: _obscureTavilyApiKey,
+                        decoration: InputDecoration(
+                          labelText: 'Tavily API key',
+                          hintText: 'Free at tavily.com',
+                          helperText:
+                              'Best results + page content in one call',
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _obscureTavilyApiKey = !_obscureTavilyApiKey;
+                              });
+                            },
+                            tooltip: _obscureTavilyApiKey
+                                ? 'Show Tavily API key'
+                                : 'Hide Tavily API key',
+                            icon: Icon(
+                              _obscureTavilyApiKey
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _braveSearchApiKeyController,
+                        obscureText: _obscureBraveSearchApiKey,
+                        decoration: InputDecoration(
+                          labelText: 'Brave Search API key',
+                          hintText: 'Free at api.search.brave.com',
+                          helperText:
+                              'Reliable JSON search, replaces DuckDuckGo scraping',
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _obscureBraveSearchApiKey =
+                                    !_obscureBraveSearchApiKey;
+                              });
+                            },
+                            tooltip: _obscureBraveSearchApiKey
+                                ? 'Show Brave Search API key'
+                                : 'Hide Brave Search API key',
+                            icon: Icon(
+                              _obscureBraveSearchApiKey
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _jinaApiKeyController,
+                        obscureText: _obscureJinaApiKey,
+                        decoration: InputDecoration(
+                          labelText: 'Jina API key',
+                          hintText: 'Free at jina.ai',
+                          helperText:
+                              'Higher rate limits for page content extraction',
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _obscureJinaApiKey = !_obscureJinaApiKey;
+                              });
+                            },
+                            tooltip: _obscureJinaApiKey
+                                ? 'Show Jina API key'
+                                : 'Hide Jina API key',
+                            icon: Icon(
+                              _obscureJinaApiKey
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _firecrawlApiKeyController,
+                        obscureText: _obscureFirecrawlApiKey,
+                        decoration: InputDecoration(
+                          labelText: 'Firecrawl API key',
+                          hintText: 'Free at firecrawl.dev',
+                          helperText:
+                              'JS-rendered pages and anti-bot bypass',
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _obscureFirecrawlApiKey =
+                                    !_obscureFirecrawlApiKey;
+                              });
+                            },
+                            tooltip: _obscureFirecrawlApiKey
+                                ? 'Show Firecrawl API key'
+                                : 'Hide Firecrawl API key',
+                            icon: Icon(
+                              _obscureFirecrawlApiKey
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                  ),
                   if (_saveError != null) ...<Widget>[
                     Text(
                       _saveError!,
@@ -438,6 +588,12 @@ class _SettingsSheetState extends State<SettingsSheet> {
 
     try {
       await widget.onSave(config, _themeMode);
+      await widget.onSaveWebSearch(
+        _jinaApiKeyController.text.trim(),
+        _tavilyApiKeyController.text.trim(),
+        _firecrawlApiKeyController.text.trim(),
+        _braveSearchApiKeyController.text.trim(),
+      );
       if (!mounted) {
         return;
       }

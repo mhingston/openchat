@@ -24,12 +24,15 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         _apiClient = apiClient,
         _webSearchService = webSearchService ?? WebSearchService(),
         _webPageBrowseService =
-            webPageBrowseService ?? WebPageBrowseService();
+            webPageBrowseService ?? WebPageBrowseService(),
+        _ownsWebServices = webSearchService == null &&
+            webPageBrowseService == null;
 
   final ChatStore _chatStore;
   final OpenAiCompatibleClient _apiClient;
-  final WebSearchService _webSearchService;
-  final WebPageBrowseService _webPageBrowseService;
+  WebSearchService _webSearchService;
+  WebPageBrowseService _webPageBrowseService;
+  bool _ownsWebServices;
 
   final List<ChatThread> _threads = <ChatThread>[];
   String? _selectedThreadId;
@@ -582,6 +585,36 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _apiClient.resetHttpClient();
     }
+  }
+
+  void configureWebSearch({
+    String? jinaApiKey,
+    String? tavilyApiKey,
+    String? firecrawlApiKey,
+    String? braveSearchApiKey,
+  }) {
+    final String? jina =
+        (jinaApiKey == null || jinaApiKey.isEmpty) ? null : jinaApiKey;
+    final String? tavily =
+        (tavilyApiKey == null || tavilyApiKey.isEmpty) ? null : tavilyApiKey;
+    final String? firecrawl = (firecrawlApiKey == null ||
+            firecrawlApiKey.isEmpty)
+        ? null
+        : firecrawlApiKey;
+    final String? brave = (braveSearchApiKey == null ||
+            braveSearchApiKey.isEmpty)
+        ? null
+        : braveSearchApiKey;
+
+    if (_ownsWebServices) {
+      _webSearchService.dispose();
+      _webPageBrowseService.dispose();
+    }
+    _webSearchService =
+        WebSearchService(tavilyApiKey: tavily, braveSearchApiKey: brave);
+    _webPageBrowseService =
+        WebPageBrowseService(jinaApiKey: jina, firecrawlApiKey: firecrawl);
+    _ownsWebServices = true;
   }
 
   @override

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
@@ -28,6 +30,8 @@ class WebPageBrowseService {
     http.Client? httpClient,
     bool? isWebOverride,
     String webProxyUrl = _defaultWebBrowseProxyUrl,
+    this.jinaApiKey,
+    this.firecrawlApiKey,
   })  : _httpClient = httpClient ?? http.Client(),
         _ownsClient = httpClient == null,
         _isWeb = isWebOverride ?? kIsWeb,
@@ -37,6 +41,8 @@ class WebPageBrowseService {
   final bool _ownsClient;
   final bool _isWeb;
   final String _webProxyUrl;
+  final String? jinaApiKey;
+  final String? firecrawlApiKey;
 
   Future<List<WebPageExcerpt>> browse(
     List<WebSearchResult> results, {
@@ -60,6 +66,41 @@ class WebPageBrowseService {
       }
 
       try {
+        // Tier 0: use content already fetched by the search provider.
+        if (result.content != null && result.content!.isNotEmpty) {
+          final WebPageExcerpt? preloadedExcerpt = _extractExcerptFromMarkdown(
+            result,
+            result.content!,
+            pageUrl: upstreamUri.toString(),
+            maxExcerptLength: maxExcerptLength,
+          );
+          if (preloadedExcerpt != null) {
+            excerpts.add(preloadedExcerpt);
+            fetchedUrls.add(preloadedExcerpt.url);
+          }
+          continue;
+        }
+
+        // Tier 1: Firecrawl for JS-rendered pages and anti-bot bypass.
+        if (firecrawlApiKey != null && firecrawlApiKey!.isNotEmpty) {
+          final String? firecrawlMarkdown =
+              await _fetchFirecrawlContent(upstreamUri);
+          if (firecrawlMarkdown != null) {
+            final WebPageExcerpt? firecrawlExcerpt =
+                _extractExcerptFromMarkdown(
+              result,
+              firecrawlMarkdown,
+              pageUrl: upstreamUri.toString(),
+              maxExcerptLength: maxExcerptLength,
+            );
+            if (firecrawlExcerpt != null) {
+              excerpts.add(firecrawlExcerpt);
+              fetchedUrls.add(firecrawlExcerpt.url);
+              continue;
+            }
+          }
+        }
+
         // Try Jina Reader first for clean markdown content.
         final String? jinaContent = await _fetchJinaContent(upstreamUri);
         if (jinaContent != null) {
@@ -359,6 +400,38 @@ class WebPageBrowseService {
         .length;
   }
 
+  /// Fetches markdown content via Firecrawl for JS-rendered or bot-protected pages.
+  /// Returns null on any failure so callers can fall back to Jina/HTML.
+  Future<String?> _fetchFirecrawlContent(Uri originalUri) async {
+    try {
+      final http.Response response = await _httpClient.post(
+        Uri.parse('https://api.firecrawl.dev/v1/scrape'),
+        headers: <String, String>{
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $firecrawlApiKey',
+        },
+        body: jsonEncode(<String, dynamic>{
+          'url': originalUri.toString(),
+          'formats': <String>['markdown'],
+        }),
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return null;
+      }
+      final Map<String, dynamic> data =
+          jsonDecode(response.body) as Map<String, dynamic>;
+      final Map<String, dynamic>? dataMap =
+          data['data'] as Map<String, dynamic>?;
+      final String? markdown = dataMap?['markdown'] as String?;
+      return (markdown != null && markdown.trim().isNotEmpty)
+          ? markdown.trim()
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Fetches clean markdown content from the Jina Reader API.
   /// Returns null if the request fails, so callers can fall back to HTML scraping.
   Future<String?> _fetchJinaContent(Uri originalUri) async {
@@ -367,9 +440,11 @@ class WebPageBrowseService {
       final Uri requestUri = _isWeb ? _proxyUri(jinaUri) : jinaUri;
       final http.Response response = await _httpClient.get(
         requestUri,
-        headers: const <String, String>{
+        headers: <String, String>{
           'Accept': 'text/plain,text/markdown',
           'X-Return-Format': 'markdown',
+          if (jinaApiKey != null && jinaApiKey!.isNotEmpty)
+            'Authorization': 'Bearer $jinaApiKey',
         },
       );
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -468,9 +543,14 @@ class WebPageBrowseService {
     final http.Response response = await _httpClient.get(
       requestUri,
       headers: const <String, String>{
-        'Accept': 'text/html,application/xhtml+xml',
         'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept':
+            'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
       },
     );
     if (response.statusCode < 200 || response.statusCode >= 300) {

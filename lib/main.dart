@@ -36,6 +36,13 @@ Future<void> main() async {
   );
   await chatController.initialize();
 
+  chatController.configureWebSearch(
+    jinaApiKey: settingsController.jinaApiKey,
+    tavilyApiKey: settingsController.tavilyApiKey,
+    firecrawlApiKey: settingsController.firecrawlApiKey,
+    braveSearchApiKey: settingsController.braveSearchApiKey,
+  );
+
   runApp(
     MultiProvider(
       providers: <SingleChildWidget>[
