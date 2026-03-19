@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
-import '../models/attachment.dart';
 import '../models/chat_thread.dart';
 
 enum ExportFormat { json, markdown }
