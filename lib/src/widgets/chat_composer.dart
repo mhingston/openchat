@@ -894,8 +894,8 @@ class _AttachmentOptionTile extends StatelessWidget {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: CircleAvatar(
-        backgroundColor: context.openChatPalette.surface,
-        child: Icon(icon),
+        backgroundColor: context.openChatPalette.surfaceRaised,
+        child: Icon(icon, color: context.openChatPalette.accent),
       ),
       title: Text(label),
       subtitle: Text(subtitle),
