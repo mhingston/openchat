@@ -18,6 +18,7 @@ OpenChat is a Flutter chat client with a ChatGPT-style interface, local conversa
 - Streaming assistant responses with markdown and code block rendering, with auto-scroll to follow new content.
 - Attachment support for camera, photos, and files.
 - Local conversation history with rename, duplicate/fork, delete (swipe-to-delete on mobile), pin, and search.
+- **Prompt library** — save named prompt templates, each with a system message and optional model and temperature overrides. Access from the drawer, tap a prompt to start a new thread with those settings pre-applied. Threads show a badge indicating which prompt they were started from. Prompts are included in JSON export/import.
 - Export conversations as JSON or Markdown and import saved chat data.
 - Voice input on iOS, Android, and supported web browsers.
 - Optional web search with a tiered provider stack that degrades gracefully based on which API keys are configured:
