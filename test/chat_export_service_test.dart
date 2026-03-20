@@ -16,8 +16,14 @@ void main() {
       final String content = service.exportThreadsAsJson(threads);
       final Object? decoded = jsonDecode(content);
 
-      expect(decoded, isA<List<dynamic>>());
-      expect((decoded! as List<dynamic>).single['title'], 'Sprint planning');
+      expect(decoded, isA<Map<String, dynamic>>());
+      final Map<String, dynamic> envelope = decoded! as Map<String, dynamic>;
+      expect(envelope['version'], 1);
+      expect(envelope['threads'], isA<List<dynamic>>());
+      expect(
+        (envelope['threads'] as List<dynamic>).single['title'],
+        'Sprint planning',
+      );
     });
 
     test('exports threads as markdown transcript', () {

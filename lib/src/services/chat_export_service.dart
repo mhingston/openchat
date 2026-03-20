@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/chat_thread.dart';
+import '../models/prompt_template.dart';
 
 enum ExportFormat { json, markdown }
 
@@ -40,12 +41,13 @@ class ChatExportService {
     required List<ChatThread> threads,
     required ExportFormat format,
     String fileNamePrefix = 'openchat-conversations',
+    List<PromptTemplate> prompts = const <PromptTemplate>[],
   }) async {
     final String extension = format == ExportFormat.json ? 'json' : 'md';
     final String fileName =
         '${_slugify(fileNamePrefix)}-${_timestampToken()}.$extension';
     final String content = format == ExportFormat.json
-        ? exportThreadsAsJson(threads)
+        ? exportThreadsAsJson(threads, prompts: prompts)
         : exportThreadsAsMarkdown(threads);
     final Uint8List bytes = Uint8List.fromList(utf8.encode(content));
     final Future<String?> Function({
@@ -97,7 +99,15 @@ class ChatExportService {
         );
       }
 
-      return ImportResult.success(threads);
+      final List<PromptTemplate> prompts =
+          decoded is Map<String, dynamic> && decoded['prompts'] is List<dynamic>
+              ? (decoded['prompts'] as List<dynamic>)
+                  .whereType<Map<String, dynamic>>()
+                  .map(PromptTemplate.fromJson)
+                  .toList()
+              : <PromptTemplate>[];
+
+      return ImportResult.success(threads, prompts: prompts);
     } on FormatException catch (error) {
       return ImportResult.error('Invalid JSON: ${error.message}');
     } catch (error) {
@@ -105,10 +115,19 @@ class ChatExportService {
     }
   }
 
-  String exportThreadsAsJson(List<ChatThread> threads) {
-    final List<Map<String, dynamic>> payload = threads
-        .map((ChatThread thread) => thread.toJson())
-        .toList(growable: false);
+  String exportThreadsAsJson(
+    List<ChatThread> threads, {
+    List<PromptTemplate> prompts = const <PromptTemplate>[],
+  }) {
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'version': 1,
+      'exportedAt': DateTime.now().toIso8601String(),
+      if (prompts.isNotEmpty)
+        'prompts': prompts.map((PromptTemplate p) => p.toJson()).toList(),
+      'threads': threads
+          .map((ChatThread thread) => thread.toJson())
+          .toList(growable: false),
+    };
     return const JsonEncoder.withIndent('  ').convert(payload);
   }
 
@@ -215,20 +234,23 @@ class ChatExportService {
 }
 
 class ImportResult {
-  const ImportResult.success(this.threads)
+  const ImportResult.success(this.threads, {this.prompts = const <PromptTemplate>[]})
       : errorMessage = null,
         isCancelled = false;
 
   const ImportResult.error(this.errorMessage)
       : threads = null,
+        prompts = const <PromptTemplate>[],
         isCancelled = false;
 
   const ImportResult.cancelled()
       : threads = null,
+        prompts = const <PromptTemplate>[],
         errorMessage = null,
         isCancelled = true;
 
   final List<ChatThread>? threads;
+  final List<PromptTemplate> prompts;
   final String? errorMessage;
   final bool isCancelled;
 

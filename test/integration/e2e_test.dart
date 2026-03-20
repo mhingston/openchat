@@ -28,6 +28,7 @@ import 'package:openchat/src/models/chat_message.dart';
 import 'package:openchat/src/models/provider_config.dart';
 import 'package:openchat/src/models/web_search_result.dart';
 import 'package:openchat/src/services/chat_store.dart';
+import 'package:openchat/src/services/prompt_template_store.dart';
 import 'package:openchat/src/services/openai_compatible_client.dart';
 import 'package:openchat/src/services/web_page_browse_service.dart';
 import 'package:openchat/src/services/web_search_service.dart';
@@ -144,6 +145,7 @@ void main() {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final ChatController controller = ChatController(
         chatStore: ChatStore(prefs),
+        promptTemplateStore: PromptTemplateStore(prefs),
         apiClient: OpenAiCompatibleClient(isWebOverride: false),
       );
       addTearDown(controller.dispose);
@@ -171,6 +173,7 @@ void main() {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final ChatController controller = ChatController(
         chatStore: ChatStore(prefs),
+        promptTemplateStore: PromptTemplateStore(prefs),
         apiClient: OpenAiCompatibleClient(isWebOverride: false),
       );
       addTearDown(controller.dispose);
@@ -309,6 +312,7 @@ void main() {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final ChatController controller = ChatController(
         chatStore: ChatStore(prefs),
+        promptTemplateStore: PromptTemplateStore(prefs),
         apiClient: OpenAiCompatibleClient(isWebOverride: false),
         webSearchService: WebSearchService(isWebOverride: false),
         webPageBrowseService: WebPageBrowseService(isWebOverride: false),

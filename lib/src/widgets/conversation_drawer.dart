@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/chat_thread.dart';
 import '../theme/app_theme.dart';
 import 'conversation_list.dart';
+import 'prompt_library_sheet.dart';
 
 class ConversationDrawer extends StatelessWidget {
   const ConversationDrawer({
@@ -31,6 +32,17 @@ class ConversationDrawer extends StatelessWidget {
   final Future<void> Function(String threadId) onDeleteThread;
   final Future<void> Function() onExportAllThreads;
   final Future<void> Function() onImportThreads;
+
+  Future<void> _openPromptLibrary(BuildContext context) async {
+    await Navigator.of(context).maybePop();
+    if (!context.mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => const PromptLibrarySheet(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,6 +88,15 @@ class ConversationDrawer extends StatelessWidget {
                         await onOpenSearch();
                       },
                       child: const Icon(Icons.search_rounded),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: 'Prompt library',
+                    child: OutlinedButton(
+                      key: const Key('drawer-prompt-library-button'),
+                      onPressed: () => _openPromptLibrary(context),
+                      child: const Icon(Icons.auto_awesome_outlined),
                     ),
                   ),
                 ],

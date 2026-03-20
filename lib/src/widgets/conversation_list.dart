@@ -117,11 +117,41 @@ class ConversationList extends StatelessWidget {
                 ),
               ],
             ),
-            subtitle: Text(
-              thread.previewText,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: context.openChatPalette.mutedText),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  thread.previewText,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: context.openChatPalette.mutedText),
+                ),
+                if (thread.promptTemplateName != null) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.auto_awesome_outlined,
+                        size: 11,
+                        color: context.openChatPalette.mutedText,
+                      ),
+                      const SizedBox(width: 3),
+                      Flexible(
+                        child: Text(
+                          thread.promptTemplateName!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: context.openChatPalette.mutedText,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
             ),
             trailing: PopupMenuButton<_ConversationAction>(
               tooltip: 'Conversation actions',

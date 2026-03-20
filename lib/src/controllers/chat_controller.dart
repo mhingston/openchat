@@ -6,10 +6,12 @@ import '../models/attachment.dart';
 import '../models/chat_message.dart';
 import '../models/chat_thread.dart';
 import '../models/conversation_search_result.dart';
+import '../models/prompt_template.dart';
 import '../models/provider_config.dart';
 import '../models/web_search_result.dart';
 import '../services/chat_store.dart';
 import '../services/openai_compatible_client.dart';
+import '../services/prompt_template_store.dart';
 import '../services/request_foreground_service.dart';
 import '../services/web_page_browse_service.dart';
 import '../services/web_search_service.dart';
@@ -18,10 +20,12 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
   ChatController(
       {required ChatStore chatStore,
       required OpenAiCompatibleClient apiClient,
+      required PromptTemplateStore promptTemplateStore,
       WebSearchService? webSearchService,
       WebPageBrowseService? webPageBrowseService})
       : _chatStore = chatStore,
         _apiClient = apiClient,
+        _promptTemplateStore = promptTemplateStore,
         _webSearchService = webSearchService ?? WebSearchService(),
         _webPageBrowseService =
             webPageBrowseService ?? WebPageBrowseService(),
@@ -30,11 +34,13 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
 
   final ChatStore _chatStore;
   final OpenAiCompatibleClient _apiClient;
+  final PromptTemplateStore _promptTemplateStore;
   WebSearchService _webSearchService;
   WebPageBrowseService _webPageBrowseService;
   bool _ownsWebServices;
 
   final List<ChatThread> _threads = <ChatThread>[];
+  final List<PromptTemplate> _prompts = <PromptTemplate>[];
   String? _selectedThreadId;
   bool _initialized = false;
   bool _isSending = false;
@@ -43,6 +49,8 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
   int _nextLocalId = 0;
 
   List<ChatThread> get threads => List<ChatThread>.unmodifiable(_threads);
+  List<PromptTemplate> get prompts =>
+      List<PromptTemplate>.unmodifiable(_prompts);
   bool get initialized => _initialized;
   bool get isSending => _isSending;
   String? get lastError => _lastError;
@@ -70,6 +78,12 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       ..clear()
       ..addAll(storedThreads);
 
+    final List<PromptTemplate> storedPrompts =
+        await _promptTemplateStore.loadPrompts();
+    _prompts
+      ..clear()
+      ..addAll(storedPrompts);
+
     _sortThreads();
     _selectedThreadId = _threads.isEmpty ? null : _threads.first.id;
     _lastError = null;
@@ -83,6 +97,47 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     _selectedThreadId = thread.id;
     _lastError = null;
     await _persist();
+    notifyListeners();
+  }
+
+  Future<void> createThreadFromPrompt(PromptTemplate prompt) async {
+    final DateTime now = DateTime.now();
+    final ChatThread thread = ChatThread(
+      id: _newId('thread'),
+      title: prompt.name,
+      messages: const <ChatMessage>[],
+      createdAt: now,
+      updatedAt: now,
+      isPinned: false,
+      promptTemplateId: prompt.id,
+      promptTemplateName: prompt.name,
+      systemPromptOverride: prompt.systemPrompt,
+      modelOverride: prompt.model,
+      temperatureOverride: prompt.temperature,
+    );
+    _threads.insert(0, thread);
+    _selectedThreadId = thread.id;
+    _lastError = null;
+    await _persist();
+    notifyListeners();
+  }
+
+  // --- Prompt CRUD ---
+
+  Future<void> savePrompt(PromptTemplate prompt) async {
+    final int index = _prompts.indexWhere((PromptTemplate p) => p.id == prompt.id);
+    if (index == -1) {
+      _prompts.add(prompt);
+    } else {
+      _prompts[index] = prompt;
+    }
+    await _persistPrompts();
+    notifyListeners();
+  }
+
+  Future<void> deletePrompt(String promptId) async {
+    _prompts.removeWhere((PromptTemplate p) => p.id == promptId);
+    await _persistPrompts();
     notifyListeners();
   }
 
@@ -763,6 +818,21 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     await _chatStore.saveThreads(_threads);
   }
 
+  Future<void> _persistPrompts() async {
+    await _promptTemplateStore.savePrompts(_prompts);
+  }
+
+  /// Returns a [ProviderConfig] with any per-thread overrides applied.
+  ProviderConfig _effectiveConfig(ChatThread thread, ProviderConfig base) {
+    return base.copyWith(
+      systemPrompt: thread.systemPromptOverride ?? base.systemPrompt,
+      model: (thread.modelOverride?.trim().isNotEmpty == true)
+          ? thread.modelOverride
+          : base.model,
+      temperature: thread.temperatureOverride ?? base.temperature,
+    );
+  }
+
   Future<void> _submitThread({
     required ChatThread thread,
     required ChatMessage assistantMessage,
@@ -775,6 +845,9 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     _isSending = true;
     notifyListeners();
     await _persist();
+
+    // Apply any per-thread overrides (from a prompt template) over the global config.
+    final ProviderConfig effectiveConfig = _effectiveConfig(thread, config);
 
     try {
       // Start the foreground service (and acquire WiFi/wake locks) as early as
@@ -801,7 +874,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         try {
           await for (final ChatCompletionChunk chunk
               in _apiClient.streamChatCompletion(
-            config: config,
+            config: effectiveConfig,
             messages: requestMessages,
           )) {
             if (chunk.isDone) {
@@ -829,7 +902,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
                 unawaited(_tryAutoGenerateTitle(
                   threadId: thread.id,
                   assistantMessageId: assistantMessage.id,
-                  config: config,
+                  config: effectiveConfig,
                 ));
               }
             } else {

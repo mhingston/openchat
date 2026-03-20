@@ -12,6 +12,7 @@ import 'package:openchat/src/models/provider_config.dart';
 import 'package:openchat/src/screens/home_screen.dart';
 import 'package:openchat/src/services/app_settings_store.dart';
 import 'package:openchat/src/services/chat_store.dart';
+import 'package:openchat/src/services/prompt_template_store.dart';
 import 'package:openchat/src/services/openai_compatible_client.dart';
 import 'package:openchat/src/services/provider_config_store.dart';
 import 'package:openchat/src/services/voice_input_service.dart';
@@ -48,6 +49,7 @@ void main() {
 
     final ChatController chatController = ChatController(
       chatStore: ChatStore(preferences),
+      promptTemplateStore: PromptTemplateStore(preferences),
       apiClient: OpenAiCompatibleClient(
         isWebOverride: false,
         httpClient: MockClient((http.Request request) async {
@@ -131,6 +133,7 @@ void main() {
 
     final ChatController chatController = ChatController(
       chatStore: chatStore,
+      promptTemplateStore: PromptTemplateStore(preferences),
       apiClient: OpenAiCompatibleClient(
         isWebOverride: false,
         httpClient: MockClient((http.Request request) async {
@@ -229,6 +232,7 @@ void main() {
 
     final ChatController chatController = ChatController(
       chatStore: chatStore,
+      promptTemplateStore: PromptTemplateStore(preferences),
       apiClient: OpenAiCompatibleClient(
         isWebOverride: false,
         httpClient: MockClient((http.Request request) async {
@@ -318,6 +322,7 @@ void main() {
 
     final ChatController chatController = ChatController(
       chatStore: chatStore,
+      promptTemplateStore: PromptTemplateStore(preferences),
       apiClient: OpenAiCompatibleClient(
         isWebOverride: false,
         httpClient: MockClient((http.Request request) async {

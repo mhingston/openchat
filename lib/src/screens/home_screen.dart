@@ -867,6 +867,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final String? location = await _chatExportService.exportThreads(
         threads: chatController.threads,
         format: format,
+        prompts: chatController.prompts,
       );
       if (!mounted || location == null) {
         return;
@@ -912,6 +913,10 @@ class _HomeScreenState extends State<HomeScreen> {
       threads: importedThreads,
       replaceExisting: mode == _ImportMode.replace,
     );
+    // Also import any prompts embedded in the export file (merge by ID).
+    for (final prompt in importResult.prompts) {
+      await chatController.savePrompt(prompt);
+    }
     if (!mounted) {
       return;
     }

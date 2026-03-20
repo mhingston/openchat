@@ -10,6 +10,7 @@ import 'package:openchat/src/models/chat_message.dart';
 import 'package:openchat/src/models/chat_thread.dart';
 import 'package:openchat/src/models/provider_config.dart';
 import 'package:openchat/src/services/chat_store.dart';
+import 'package:openchat/src/services/prompt_template_store.dart';
 import 'package:openchat/src/services/openai_compatible_client.dart';
 import 'package:openchat/src/services/web_page_browse_service.dart';
 import 'package:openchat/src/services/web_search_service.dart';
@@ -71,6 +72,7 @@ void main() {
 
       final ChatController controller = ChatController(
         chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
         apiClient: _createClient(),
       );
       await controller.initialize();
@@ -144,6 +146,7 @@ void main() {
       late Map<String, dynamic> requestBody;
       final ChatController controller = ChatController(
         chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
         apiClient: OpenAiCompatibleClient(
           isWebOverride: false,
           httpClient: MockClient((http.Request request) async {
@@ -272,6 +275,7 @@ void main() {
       final ChatStore store = ChatStore(preferences);
       final ChatController controller = ChatController(
         chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
         apiClient: OpenAiCompatibleClient(
           isWebOverride: false,
           httpClient: MockClient((http.Request request) async {
@@ -353,6 +357,7 @@ void main() {
 
       final ChatController controller = ChatController(
         chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
         apiClient: OpenAiCompatibleClient(
           isWebOverride: false,
           httpClient: _StreamingClient(ollamaChunks),
@@ -419,6 +424,7 @@ void main() {
       late Map<String, dynamic> requestBody;
       final ChatController controller = ChatController(
         chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
         apiClient: OpenAiCompatibleClient(
           isWebOverride: false,
           httpClient: MockClient((http.Request request) async {
@@ -526,6 +532,7 @@ void main() {
 
       final ChatController controller = ChatController(
         chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
         apiClient: _createClient(),
       );
       await controller.initialize();
@@ -578,6 +585,7 @@ void main() {
 
       final ChatController controller = ChatController(
         chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
         apiClient: _createClient(),
       );
       await controller.initialize();
@@ -664,6 +672,7 @@ void main() {
 
       final ChatController controller = ChatController(
         chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
         apiClient: _createClient(),
       );
       await controller.initialize();
@@ -750,6 +759,7 @@ void main() {
 
       final ChatController controller = ChatController(
         chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
         apiClient: _createClient(),
       );
       await controller.initialize();
@@ -869,6 +879,7 @@ void main() {
 
       final ChatController controller = ChatController(
         chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
         apiClient: _createClient(),
       );
       await controller.initialize();
@@ -914,6 +925,7 @@ void main() {
 
       final ChatController controller = ChatController(
         chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
         apiClient: _createClient(),
       );
       await controller.initialize();
@@ -941,6 +953,7 @@ Future<({ChatController controller, ChatStore store})>
   final ChatStore store = ChatStore(preferences);
   final ChatController controller = ChatController(
     chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
     apiClient: _createClient(),
   );
   await controller.initialize();

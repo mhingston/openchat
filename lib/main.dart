@@ -9,6 +9,7 @@ import 'src/controllers/settings_controller.dart';
 import 'src/services/app_settings_store.dart';
 import 'src/services/chat_store.dart';
 import 'src/services/openai_compatible_client.dart';
+import 'src/services/prompt_template_store.dart';
 import 'src/services/provider_config_store.dart';
 import 'src/services/request_foreground_service.dart';
 import 'src/services/voice_input_service.dart';
@@ -23,6 +24,8 @@ Future<void> main() async {
       ProviderConfigStore(preferences);
   final AppSettingsStore appSettingsStore = AppSettingsStore(preferences);
   final ChatStore chatStore = ChatStore(preferences);
+  final PromptTemplateStore promptTemplateStore =
+      PromptTemplateStore(preferences);
 
   final SettingsController settingsController = SettingsController(
     providerConfigStore: providerConfigStore,
@@ -33,6 +36,7 @@ Future<void> main() async {
   final ChatController chatController = ChatController(
     chatStore: chatStore,
     apiClient: OpenAiCompatibleClient(),
+    promptTemplateStore: promptTemplateStore,
   );
   await chatController.initialize();
 
