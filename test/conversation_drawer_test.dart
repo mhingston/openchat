@@ -62,7 +62,7 @@ void main() {
     expect(exportAllCount, 1);
     expect(importCount, 1);
     expect(find.byKey(const Key('drawer-export-current-button')), findsNothing);
-    expect(find.text('New chat'), findsOneWidget);
+    expect(find.byTooltip('New chat'), findsOneWidget);
   });
 
   testWidgets('drawer lets users pin a conversation', (
