@@ -203,13 +203,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     final ChatController controller =
                         context.read<ChatController>();
                     if (_editingMessageId != null && _editingThreadId != null) {
+                      // Capture edit context before clearing state so the
+                      // banner is dismissed immediately on submit, not after
+                      // the entire LLM response has finished streaming.
+                      final String editThreadId = _editingThreadId!;
+                      final String editMessageId = _editingMessageId!;
+                      final List<ChatAttachment> baseAttachments =
+                          List<ChatAttachment>.from(_editingBaseAttachments);
+                      _clearEditingDraft();
+
                       final bool edited =
                           await controller.editUserMessageAndResubmit(
-                        threadId: _editingThreadId!,
-                        messageId: _editingMessageId!,
+                        threadId: editThreadId,
+                        messageId: editMessageId,
                         text: text,
                         attachments: <ChatAttachment>[
-                          ..._editingBaseAttachments,
+                          ...baseAttachments,
                           ...attachments,
                         ],
                         config: providerConfig,
@@ -727,6 +736,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (!mounted) {
       return;
+    }
+
+    if (_editingMessageId == messageId) {
+      _clearEditingDraft();
     }
 
     _showSnackBar('Message deleted.');

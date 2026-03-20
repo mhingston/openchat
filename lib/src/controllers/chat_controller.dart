@@ -852,7 +852,8 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
           final bool isNetworkError = error.toString().contains('SocketException') ||
               error.toString().contains('Failed host lookup') ||
               error.toString().contains('Connection refused') ||
-              error.toString().contains('Connection reset');
+              error.toString().contains('Connection reset') ||
+              error.toString().contains('Connection closed');
           if (isNetworkError && attempt < maxAttempts) {
             // Brief pause to let Android restore DNS after backgrounding.
             await Future<void>.delayed(const Duration(seconds: 2));
@@ -867,7 +868,8 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       final bool isNetworkError = error.toString().contains('SocketException') ||
           error.toString().contains('Failed host lookup') ||
           error.toString().contains('Connection refused') ||
-          error.toString().contains('Connection reset');
+          error.toString().contains('Connection reset') ||
+          error.toString().contains('Connection closed');
       final String errorMessage = isNetworkError
           ? 'Network error — the request could not complete.\n\n'
             'If you backgrounded the app, Android may have cut the '

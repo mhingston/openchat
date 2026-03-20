@@ -42,13 +42,6 @@ class ConversationDrawer extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
               Text('OpenChat', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              Text(
-                'Recent conversations',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: context.openChatPalette.mutedText,
-                    ),
-              ),
               if (threads
                   .any((ChatThread thread) => thread.isPinned)) ...<Widget>[
                 const SizedBox(height: 8),
@@ -59,27 +52,35 @@ class ConversationDrawer extends StatelessWidget {
                       ),
                 ),
               ],
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                key: const Key('drawer-new-chat-button'),
-                onPressed: () async {
-                  await Navigator.of(context).maybePop();
-                  await onCreateThread();
-                },
-                icon: const Icon(Icons.add_comment_outlined),
-                label: const Text('New chat'),
+              const SizedBox(height: 12),
+              Row(
+                children: <Widget>[
+                  Tooltip(
+                    message: 'New chat',
+                    child: FilledButton(
+                      key: const Key('drawer-new-chat-button'),
+                      onPressed: () async {
+                        await Navigator.of(context).maybePop();
+                        await onCreateThread();
+                      },
+                      child: const Icon(Icons.add_comment_outlined),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: 'Search chats',
+                    child: OutlinedButton(
+                      key: const Key('drawer-search-button'),
+                      onPressed: () async {
+                        await Navigator.of(context).maybePop();
+                        await onOpenSearch();
+                      },
+                      child: const Icon(Icons.search_rounded),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
-              OutlinedButton.icon(
-                key: const Key('drawer-search-button'),
-                onPressed: () async {
-                  await Navigator.of(context).maybePop();
-                  await onOpenSearch();
-                },
-                icon: const Icon(Icons.search_rounded),
-                label: const Text('Search chats'),
-              ),
-              const SizedBox(height: 20),
               Expanded(
                 child: ConversationList(
                   threads: threads,
@@ -93,29 +94,25 @@ class ConversationDrawer extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               const Divider(),
-              const SizedBox(height: 12),
-              Text(
-                'Transfer',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: context.openChatPalette.mutedText,
-                    ),
-              ),
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              Row(
                 children: <Widget>[
-                  OutlinedButton.icon(
-                    key: const Key('drawer-export-all-button'),
-                    onPressed: threads.isEmpty ? null : onExportAllThreads,
-                    icon: const Icon(Icons.library_books_outlined),
-                    label: const Text('Export all'),
+                  Tooltip(
+                    message: 'Export all',
+                    child: OutlinedButton(
+                      key: const Key('drawer-export-all-button'),
+                      onPressed: threads.isEmpty ? null : onExportAllThreads,
+                      child: const Icon(Icons.library_books_outlined),
+                    ),
                   ),
-                  OutlinedButton.icon(
-                    key: const Key('drawer-import-button'),
-                    onPressed: onImportThreads,
-                    icon: const Icon(Icons.file_upload_outlined),
-                    label: const Text('Import chats'),
+                  const SizedBox(width: 8),
+                  Tooltip(
+                    message: 'Import chats',
+                    child: OutlinedButton(
+                      key: const Key('drawer-import-button'),
+                      onPressed: onImportThreads,
+                      child: const Icon(Icons.file_upload_outlined),
+                    ),
                   ),
                 ],
               ),
