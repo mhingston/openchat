@@ -324,7 +324,7 @@ void main() {
   // Widget: PromptLibrarySheet
   // ---------------------------------------------------------------------------
   group('PromptLibrarySheet', () {
-    Future<ChatController> _makeController() async {
+    Future<ChatController> makeController() async {
       SharedPreferences.setMockInitialValues(<String, Object>{});
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final ChatController controller = ChatController(
@@ -338,7 +338,7 @@ void main() {
 
     testWidgets('shows empty state when no prompts exist',
         (WidgetTester tester) async {
-      final ChatController controller = await _makeController();
+      final ChatController controller = await makeController();
 
       await tester.pumpWidget(
         MaterialApp(
@@ -355,7 +355,7 @@ void main() {
     });
 
     testWidgets('shows saved prompts in the list', (WidgetTester tester) async {
-      final ChatController controller = await _makeController();
+      final ChatController controller = await makeController();
       final DateTime now = DateTime(2026, 3, 20, 9, 0);
       await controller.savePrompt(PromptTemplate(
         id: 'p1',
