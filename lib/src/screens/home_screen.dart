@@ -380,6 +380,7 @@ class _HomeScreenState extends State<HomeScreen> {
           tavilyApiKey: settingsController.tavilyApiKey,
           firecrawlApiKey: settingsController.firecrawlApiKey,
           braveSearchApiKey: settingsController.braveSearchApiKey,
+          deepResearchMaxRounds: settingsController.deepResearchMaxRounds,
           onSave: (ProviderConfig providerConfig, ThemeMode themeMode) async {
             await settingsController.saveConfiguration(
               providerConfig: providerConfig,
@@ -391,6 +392,7 @@ class _HomeScreenState extends State<HomeScreen> {
             String tavilyApiKey,
             String firecrawlApiKey,
             String braveSearchApiKey,
+            int deepResearchMaxRounds,
           ) async {
             final ChatController chatController =
                 context.read<ChatController>();
@@ -401,12 +403,14 @@ class _HomeScreenState extends State<HomeScreen> {
               tavilyApiKey: tavilyApiKey,
               firecrawlApiKey: firecrawlApiKey,
               braveSearchApiKey: braveSearchApiKey,
+              deepResearchMaxRounds: deepResearchMaxRounds,
             );
             chatController.configureWebSearch(
               jinaApiKey: jinaApiKey,
               tavilyApiKey: tavilyApiKey,
               firecrawlApiKey: firecrawlApiKey,
               braveSearchApiKey: braveSearchApiKey,
+              deepResearchMaxRounds: deepResearchMaxRounds,
             );
           },
         );

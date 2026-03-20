@@ -45,6 +45,7 @@ Future<void> main() async {
     tavilyApiKey: settingsController.tavilyApiKey,
     firecrawlApiKey: settingsController.firecrawlApiKey,
     braveSearchApiKey: settingsController.braveSearchApiKey,
+    deepResearchMaxRounds: settingsController.deepResearchMaxRounds,
   );
 
   runApp(

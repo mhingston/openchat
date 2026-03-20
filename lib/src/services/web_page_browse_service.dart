@@ -51,6 +51,7 @@ class WebPageBrowseService {
     int maxLinksPerPage = 2,
     int maxFollowedPages = 4,
     int maxExcerptLength = 900,
+    Set<String>? alreadyFetchedUrls,
   }) async {
     if (results.isEmpty || maxPages <= 0) {
       return const <WebPageExcerpt>[];
@@ -58,10 +59,18 @@ class WebPageBrowseService {
 
     final List<WebPageExcerpt> excerpts = <WebPageExcerpt>[];
     final Set<String> fetchedUrls = <String>{};
+    // Seed with any URLs already visited in a prior research round so we never
+    // re-fetch the same page across multiple rounds.
+    if (alreadyFetchedUrls != null) {
+      fetchedUrls.addAll(alreadyFetchedUrls);
+    }
     int followedPages = 0;
     for (final WebSearchResult result in results.take(maxPages)) {
       final Uri? upstreamUri = Uri.tryParse(result.url);
       if (upstreamUri == null || !upstreamUri.hasScheme) {
+        continue;
+      }
+      if (fetchedUrls.contains(upstreamUri.toString())) {
         continue;
       }
 

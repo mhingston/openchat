@@ -303,6 +303,62 @@ class OpenAiCompatibleClient {
     }
   }
 
+  /// Makes a single non-streaming chat completion and returns the raw response
+  /// text, or `null` on any error. Used for lightweight planning calls.
+  Future<String?> completeChat({
+    required ProviderConfig config,
+    required List<Map<String, dynamic>> messages,
+    int maxTokens = 256,
+    double temperature = 0.1,
+  }) async {
+    if (!config.isValidForChat) {
+      return null;
+    }
+    try {
+      final String corsProxyUrl = _resolvedCorsProxyUrl();
+      final Uri uri = config.usesOllamaApi
+          ? _ollamaChatUri(config, corsProxyUrl: corsProxyUrl)
+          : _appendedUri(
+              config.normalizedBaseUrl,
+              <String>['chat', 'completions'],
+              corsProxyUrl: corsProxyUrl,
+            );
+
+      final Map<String, dynamic> payload = <String, dynamic>{
+        'model': config.model.trim(),
+        'temperature': temperature,
+        'stream': false,
+        'max_tokens': maxTokens,
+        'messages': messages,
+      };
+
+      final http.Response response = await _httpClient
+          .post(
+            uri,
+            headers: _headers(config),
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return null;
+      }
+
+      final Object? decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        return null;
+      }
+
+      final String content = config.usesOllamaApi
+          ? _extractOllamaMessageContent(decoded)
+          : _extractMessageContent(decoded);
+
+      return content.trim().isEmpty ? null : content.trim();
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Closes the current HTTP client and creates a fresh one. Call this when
   /// the app returns to the foreground so stale OS-level connections are
   /// discarded and DNS resolution starts clean.

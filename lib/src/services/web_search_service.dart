@@ -46,6 +46,32 @@ class WebSearchService {
     return _searchDuckDuckGo(normalizedQuery, maxResults: maxResults);
   }
 
+  /// Runs [queries] in parallel and returns deduplicated results ordered by
+  /// query index (earlier queries take priority in deduplication).
+  Future<List<WebSearchResult>> searchAll(
+    List<String> queries, {
+    int maxResultsPerQuery = 5,
+  }) async {
+    if (queries.isEmpty) {
+      return const <WebSearchResult>[];
+    }
+    final List<List<WebSearchResult>> perQueryResults = await Future.wait(
+      queries.map(
+        (String q) => search(q, maxResults: maxResultsPerQuery),
+      ),
+    );
+    final Set<String> seenUrls = <String>{};
+    final List<WebSearchResult> combined = <WebSearchResult>[];
+    for (final List<WebSearchResult> batch in perQueryResults) {
+      for (final WebSearchResult result in batch) {
+        if (seenUrls.add(result.url)) {
+          combined.add(result);
+        }
+      }
+    }
+    return combined;
+  }
+
   Future<List<WebSearchResult>> _searchTavily(
     String query, {
     required int maxResults,

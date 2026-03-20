@@ -22,7 +22,8 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       required OpenAiCompatibleClient apiClient,
       required PromptTemplateStore promptTemplateStore,
       WebSearchService? webSearchService,
-      WebPageBrowseService? webPageBrowseService})
+      WebPageBrowseService? webPageBrowseService,
+      int deepResearchMaxRounds = 2})
       : _chatStore = chatStore,
         _apiClient = apiClient,
         _promptTemplateStore = promptTemplateStore,
@@ -30,7 +31,8 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         _webPageBrowseService =
             webPageBrowseService ?? WebPageBrowseService(),
         _ownsWebServices = webSearchService == null &&
-            webPageBrowseService == null;
+            webPageBrowseService == null,
+        _deepResearchMaxRounds = deepResearchMaxRounds;
 
   final ChatStore _chatStore;
   final OpenAiCompatibleClient _apiClient;
@@ -38,6 +40,8 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
   WebSearchService _webSearchService;
   WebPageBrowseService _webPageBrowseService;
   bool _ownsWebServices;
+  int _deepResearchMaxRounds;
+  ProviderConfig? _lastEffectiveConfig;
 
   final List<ChatThread> _threads = <ChatThread>[];
   final List<PromptTemplate> _prompts = <PromptTemplate>[];
@@ -647,7 +651,9 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     String? tavilyApiKey,
     String? firecrawlApiKey,
     String? braveSearchApiKey,
+    int deepResearchMaxRounds = 2,
   }) {
+    _deepResearchMaxRounds = deepResearchMaxRounds;
     final String? jina =
         (jinaApiKey == null || jinaApiKey.isEmpty) ? null : jinaApiKey;
     final String? tavily =
@@ -848,6 +854,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
 
     // Apply any per-thread overrides (from a prompt template) over the global config.
     final ProviderConfig effectiveConfig = _effectiveConfig(thread, config);
+    _lastEffectiveConfig = effectiveConfig;
 
     try {
       // Start the foreground service (and acquire WiFi/wake locks) as early as
@@ -996,13 +1003,31 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       return (requestMessages, const <String>[]);
     }
 
+    final String initialQuery = _buildSearchQuery(requestMessages);
+
+    if (_deepResearchMaxRounds <= 0) {
+      // Legacy single-pass behaviour.
+      return _singlePassWebSearch(
+        requestMessages: requestMessages,
+        initialQuery: initialQuery,
+      );
+    }
+
+    return _deepResearchLoop(
+      requestMessages: requestMessages,
+      initialQuery: initialQuery,
+    );
+  }
+
+  Future<(List<ChatMessage>, List<String>)> _singlePassWebSearch({
+    required List<ChatMessage> requestMessages,
+    required String initialQuery,
+  }) async {
     _searchStatus = 'Searching the web…';
     notifyListeners();
 
-    final String searchQuery = _buildSearchQuery(requestMessages);
-    final List<WebSearchResult> results = await _webSearchService.search(
-      searchQuery,
-    );
+    final List<WebSearchResult> results =
+        await _webSearchService.search(initialQuery);
     if (results.isEmpty) {
       _searchStatus = null;
       notifyListeners();
@@ -1014,33 +1039,245 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
 
     final List<WebPageExcerpt> excerpts = await _webPageBrowseService.browse(
       results,
-      query: searchQuery,
+      query: initialQuery,
     );
 
     _searchStatus = null;
     notifyListeners();
 
-    final List<String> sources = <String>[
-      for (final WebSearchResult r in results) r.url,
-      for (final WebPageExcerpt e in excerpts)
-        if (!results.any((WebSearchResult r) => r.url == e.url)) e.url,
-    ];
+    final List<String> sources = _collectSources(results, excerpts);
+    final ChatMessage contextMessage = _buildContextMessage(
+      initialQuery,
+      results,
+      excerpts,
+    );
 
-    final ChatMessage searchContextMessage = ChatMessage(
+    return (<ChatMessage>[contextMessage, ...requestMessages], sources);
+  }
+
+  Future<(List<ChatMessage>, List<String>)> _deepResearchLoop({
+    required List<ChatMessage> requestMessages,
+    required String initialQuery,
+  }) async {
+    final List<(String, List<WebSearchResult>, List<WebPageExcerpt>)>
+        allRounds = <(String, List<WebSearchResult>, List<WebPageExcerpt>)>[];
+    final Set<String> allFetchedUrls = <String>{};
+    final List<String> allSources = <String>[];
+
+    // --- Round 1: use the heuristic query ---
+    _searchStatus = 'Researching… (round 1 of $_deepResearchMaxRounds)';
+    notifyListeners();
+
+    final List<WebSearchResult> round1Results =
+        await _webSearchService.search(initialQuery);
+
+    if (round1Results.isNotEmpty) {
+      _searchStatus =
+          'Browsing pages… (round 1 of $_deepResearchMaxRounds)';
+      notifyListeners();
+
+      final List<WebPageExcerpt> round1Excerpts =
+          await _webPageBrowseService.browse(
+        round1Results,
+        query: initialQuery,
+        alreadyFetchedUrls: allFetchedUrls,
+      );
+
+      allRounds.add((initialQuery, round1Results, round1Excerpts));
+      for (final WebSearchResult r in round1Results) {
+        allFetchedUrls.add(r.url);
+      }
+      for (final WebPageExcerpt e in round1Excerpts) {
+        allFetchedUrls.add(e.url);
+      }
+      allSources.addAll(_collectSources(round1Results, round1Excerpts));
+    }
+
+    // --- Rounds 2+: ask the LLM what to search for next ---
+    final ProviderConfig? planningConfig = _currentPlanningConfig();
+
+    for (int round = 2;
+        round <= _deepResearchMaxRounds && planningConfig != null;
+        round += 1) {
+      _searchStatus =
+          'Planning research… (round $round of $_deepResearchMaxRounds)';
+      notifyListeners();
+
+      final List<String> followUpQueries = await _planFollowUpSearches(
+        config: planningConfig,
+        userQuery: initialQuery,
+        completedRounds: allRounds,
+      );
+
+      if (followUpQueries.isEmpty) {
+        break;
+      }
+
+      _searchStatus =
+          'Researching… (round $round of $_deepResearchMaxRounds)';
+      notifyListeners();
+
+      final List<WebSearchResult> roundResults =
+          await _webSearchService.searchAll(
+        followUpQueries,
+        maxResultsPerQuery: 4,
+      );
+
+      if (roundResults.isEmpty) {
+        break;
+      }
+
+      _searchStatus =
+          'Browsing pages… (round $round of $_deepResearchMaxRounds)';
+      notifyListeners();
+
+      final String combinedQuery = followUpQueries.join('; ');
+      final List<WebPageExcerpt> roundExcerpts =
+          await _webPageBrowseService.browse(
+        roundResults,
+        query: combinedQuery,
+        alreadyFetchedUrls: allFetchedUrls,
+      );
+
+      allRounds.add((combinedQuery, roundResults, roundExcerpts));
+      for (final WebSearchResult r in roundResults) {
+        allFetchedUrls.add(r.url);
+      }
+      for (final WebPageExcerpt e in roundExcerpts) {
+        allFetchedUrls.add(e.url);
+      }
+      allSources.addAll(_collectSources(roundResults, roundExcerpts));
+    }
+
+    _searchStatus = null;
+    notifyListeners();
+
+    if (allRounds.isEmpty) {
+      return (requestMessages, const <String>[]);
+    }
+
+    final StringBuffer contextBuffer = StringBuffer();
+    for (int i = 0; i < allRounds.length; i += 1) {
+      final (String query, List<WebSearchResult> results,
+          List<WebPageExcerpt> excerpts) = allRounds[i];
+      if (i > 0) {
+        contextBuffer.writeln();
+        contextBuffer.writeln('---');
+        contextBuffer.writeln();
+      }
+      contextBuffer.write(
+        _webPageBrowseService.formatBrowseContext(query, results, excerpts),
+      );
+    }
+
+    final ChatMessage contextMessage = ChatMessage(
       id: _newId('message'),
       role: ChatRole.system,
-      text: _webPageBrowseService.formatBrowseContext(
-        searchQuery,
-        results,
-        excerpts,
-      ),
+      text: contextBuffer.toString().trim(),
       createdAt: DateTime.now(),
       attachments: const <ChatAttachment>[],
       isStreaming: false,
       isError: false,
     );
 
-    return (<ChatMessage>[searchContextMessage, ...requestMessages], sources);
+    final Set<String> seenSources = <String>{};
+    final List<String> dedupedSources = allSources
+        .where((String s) => seenSources.add(s))
+        .toList(growable: false);
+
+    return (<ChatMessage>[contextMessage, ...requestMessages], dedupedSources);
+  }
+
+  /// Asks the LLM for follow-up search queries based on what has been found so far.
+  /// Returns a list of 0–3 queries. Returns empty list if more research is not needed
+  /// or if the planning call fails.
+  Future<List<String>> _planFollowUpSearches({
+    required ProviderConfig config,
+    required String userQuery,
+    required List<(String, List<WebSearchResult>, List<WebPageExcerpt>)>
+        completedRounds,
+  }) async {
+    final StringBuffer summary = StringBuffer();
+    for (final (String query, List<WebSearchResult> results,
+        List<WebPageExcerpt> excerpts) in completedRounds) {
+      summary.writeln('Query: "$query"');
+      summary.writeln(
+        'Found ${results.length} search result(s) and ${excerpts.length} page excerpt(s).',
+      );
+      for (final WebSearchResult r in results.take(3)) {
+        summary.writeln('  - ${r.title}: ${r.snippet.length > 80 ? '${r.snippet.substring(0, 80)}…' : r.snippet}');
+      }
+    }
+
+    const String systemPrompt =
+        'You are a research planner. Your job is to decide whether additional '
+        'web searches are needed to fully answer a user question, and if so, '
+        'what to search for. Reply with ONLY a newline-separated list of up to '
+        '3 specific search queries (no numbering, no explanations), or reply '
+        'with the single word DONE if the existing research is sufficient.';
+
+    final String userContent =
+        'User question: $userQuery\n\n'
+        'Research gathered so far:\n${summary.toString().trim()}\n\n'
+        'List follow-up search queries or reply DONE.';
+
+    final String? response = await _apiClient.completeChat(
+      config: config,
+      messages: <Map<String, dynamic>>[
+        <String, dynamic>{'role': 'system', 'content': systemPrompt},
+        <String, dynamic>{'role': 'user', 'content': userContent},
+      ],
+      maxTokens: 150,
+      temperature: 0.2,
+    );
+
+    if (response == null || response.trim().toUpperCase() == 'DONE') {
+      return const <String>[];
+    }
+
+    return response
+        .split('\n')
+        .map((String line) => line.trim())
+        .where((String line) => line.isNotEmpty && line.toUpperCase() != 'DONE')
+        .take(3)
+        .toList(growable: false);
+  }
+
+  /// Returns the effective [ProviderConfig] to use for planning calls,
+  /// or `null` if no valid config is available.
+  ProviderConfig? _currentPlanningConfig() {
+    final ChatThread? thread = currentThread;
+    if (thread == null) {
+      return null;
+    }
+    return _lastEffectiveConfig;
+  }
+
+  List<String> _collectSources(
+    List<WebSearchResult> results,
+    List<WebPageExcerpt> excerpts,
+  ) {
+    return <String>[
+      for (final WebSearchResult r in results) r.url,
+      for (final WebPageExcerpt e in excerpts)
+        if (!results.any((WebSearchResult r) => r.url == e.url)) e.url,
+    ];
+  }
+
+  ChatMessage _buildContextMessage(
+    String query,
+    List<WebSearchResult> results,
+    List<WebPageExcerpt> excerpts,
+  ) {
+    return ChatMessage(
+      id: _newId('message'),
+      role: ChatRole.system,
+      text: _webPageBrowseService.formatBrowseContext(query, results, excerpts),
+      createdAt: DateTime.now(),
+      attachments: const <ChatAttachment>[],
+      isStreaming: false,
+      isError: false,
+    );
   }
 
   Future<void> _tryAutoGenerateTitle({

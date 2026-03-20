@@ -30,6 +30,7 @@ class SettingsController extends ChangeNotifier {
   String get tavilyApiKey => _appSettings.tavilyApiKey;
   String get firecrawlApiKey => _appSettings.firecrawlApiKey;
   String get braveSearchApiKey => _appSettings.braveSearchApiKey;
+  int get deepResearchMaxRounds => _appSettings.deepResearchMaxRounds;
   bool get initialized => _initialized;
   bool get hasConfiguredProvider => _providerConfig.isValidForChat;
   List<String> get availableModels =>
@@ -53,6 +54,7 @@ class SettingsController extends ChangeNotifier {
     String? tavilyApiKey,
     String? firecrawlApiKey,
     String? braveSearchApiKey,
+    int? deepResearchMaxRounds,
   }) async {
     final bool providerChanged =
         providerConfig.cacheKey != _providerConfig.cacheKey;
@@ -68,6 +70,7 @@ class SettingsController extends ChangeNotifier {
       tavilyApiKey: tavilyApiKey,
       firecrawlApiKey: firecrawlApiKey,
       braveSearchApiKey: braveSearchApiKey,
+      deepResearchMaxRounds: deepResearchMaxRounds,
     );
     await _providerConfigStore.save(providerConfig);
     await _appSettingsStore.save(_appSettings);

@@ -79,9 +79,11 @@ class _PromptEditSheetState extends State<PromptEditSheet> {
     final bool isEditing = widget.initial != null;
     final OpenChatPalette palette = context.openChatPalette;
 
+    final MediaQueryData mediaQuery = MediaQuery.of(context);
     return Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: mediaQuery.viewInsets.bottom + mediaQuery.viewPadding.bottom,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[

@@ -21,6 +21,7 @@ class AppSettings {
     this.tavilyApiKey = '',
     this.firecrawlApiKey = '',
     this.braveSearchApiKey = '',
+    this.deepResearchMaxRounds = 2,
   });
 
   factory AppSettings.initial() {
@@ -42,6 +43,8 @@ class AppSettings {
       tavilyApiKey: json['tavilyApiKey'] as String? ?? '',
       firecrawlApiKey: json['firecrawlApiKey'] as String? ?? '',
       braveSearchApiKey: json['braveSearchApiKey'] as String? ?? '',
+      deepResearchMaxRounds:
+          (json['deepResearchMaxRounds'] as int? ?? 2).clamp(0, 5).toInt(),
     );
   }
 
@@ -52,6 +55,7 @@ class AppSettings {
   final String tavilyApiKey;
   final String firecrawlApiKey;
   final String braveSearchApiKey;
+  final int deepResearchMaxRounds;
 
   AppSettings copyWith({
     ThemeMode? themeMode,
@@ -61,6 +65,7 @@ class AppSettings {
     String? tavilyApiKey,
     String? firecrawlApiKey,
     String? braveSearchApiKey,
+    int? deepResearchMaxRounds,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -70,6 +75,8 @@ class AppSettings {
       tavilyApiKey: tavilyApiKey ?? this.tavilyApiKey,
       firecrawlApiKey: firecrawlApiKey ?? this.firecrawlApiKey,
       braveSearchApiKey: braveSearchApiKey ?? this.braveSearchApiKey,
+      deepResearchMaxRounds:
+          deepResearchMaxRounds ?? this.deepResearchMaxRounds,
     );
   }
 
@@ -82,6 +89,7 @@ class AppSettings {
       'tavilyApiKey': tavilyApiKey,
       'firecrawlApiKey': firecrawlApiKey,
       'braveSearchApiKey': braveSearchApiKey,
+      'deepResearchMaxRounds': deepResearchMaxRounds,
     };
   }
 }

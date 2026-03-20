@@ -16,6 +16,7 @@ class SettingsSheet extends StatefulWidget {
     required this.tavilyApiKey,
     required this.firecrawlApiKey,
     required this.braveSearchApiKey,
+    required this.deepResearchMaxRounds,
     required this.onSaveWebSearch,
   });
 
@@ -27,11 +28,13 @@ class SettingsSheet extends StatefulWidget {
   final String tavilyApiKey;
   final String firecrawlApiKey;
   final String braveSearchApiKey;
+  final int deepResearchMaxRounds;
   final Future<void> Function(
     String jinaApiKey,
     String tavilyApiKey,
     String firecrawlApiKey,
     String braveSearchApiKey,
+    int deepResearchMaxRounds,
   ) onSaveWebSearch;
 
   @override
@@ -63,6 +66,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
   bool _obscureTavilyApiKey = true;
   bool _obscureFirecrawlApiKey = true;
   bool _obscureBraveSearchApiKey = true;
+  late int _deepResearchMaxRounds;
 
   @override
   void initState() {
@@ -85,6 +89,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
         TextEditingController(text: widget.firecrawlApiKey);
     _braveSearchApiKeyController =
         TextEditingController(text: widget.braveSearchApiKey);
+    _deepResearchMaxRounds = widget.deepResearchMaxRounds;
   }
 
   @override
@@ -537,6 +542,46 @@ class _SettingsSheetState extends State<SettingsSheet> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: Text(
+                              'Deep research rounds',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                          Text(
+                            _deepResearchMaxRounds == 0
+                                ? 'Off'
+                                : '$_deepResearchMaxRounds round${_deepResearchMaxRounds == 1 ? '' : 's'}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                      Slider(
+                        value: _deepResearchMaxRounds.toDouble(),
+                        min: 0,
+                        max: 5,
+                        divisions: 5,
+                        label: _deepResearchMaxRounds == 0
+                            ? 'Off'
+                            : '$_deepResearchMaxRounds',
+                        onChanged: (double value) {
+                          setState(() {
+                            _deepResearchMaxRounds = value.round();
+                          });
+                        },
+                      ),
+                      Text(
+                        _deepResearchMaxRounds == 0
+                            ? 'Single-pass search (fastest)'
+                            : 'Agent searches up to $_deepResearchMaxRounds time${_deepResearchMaxRounds == 1 ? '' : 's'} before answering',
+                        style:
+                            Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: context.openChatPalette.mutedText,
+                                ),
+                      ),
                       const SizedBox(height: 8),
                     ],
                   ),
@@ -593,6 +638,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
         _tavilyApiKeyController.text.trim(),
         _firecrawlApiKeyController.text.trim(),
         _braveSearchApiKeyController.text.trim(),
+        _deepResearchMaxRounds,
       );
       if (!mounted) {
         return;
