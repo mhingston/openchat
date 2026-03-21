@@ -4,8 +4,18 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openchat/src/models/attachment.dart';
 import 'package:openchat/src/models/chat_message.dart';
+import 'package:openchat/src/services/tts_service.dart';
 import 'package:openchat/src/theme/app_theme.dart';
 import 'package:openchat/src/widgets/chat_message_bubble.dart';
+import 'package:provider/provider.dart';
+
+Widget _wrap(Widget child) => ChangeNotifierProvider<TtsService>(
+      create: (_) => TtsService(),
+      child: MaterialApp(
+        theme: AppTheme.lightTheme(),
+        home: child,
+      ),
+    );
 
 void main() {
   testWidgets(
@@ -27,9 +37,8 @@ void main() {
       });
 
       await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.lightTheme(),
-          home: Scaffold(
+        _wrap(
+          Scaffold(
             body: ChatMessageBubble(
               message: ChatMessage(
                 id: 'assistant-1',
@@ -96,9 +105,8 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.lightTheme(),
-        home: Scaffold(
+      _wrap(
+        Scaffold(
           body: ChatMessageBubble(
             message: ChatMessage(
               id: 'user-1',
@@ -126,9 +134,8 @@ void main() {
     bool didFork = false;
 
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.lightTheme(),
-        home: Scaffold(
+      _wrap(
+        Scaffold(
           body: ChatMessageBubble(
             message: ChatMessage(
               id: 'user-1',

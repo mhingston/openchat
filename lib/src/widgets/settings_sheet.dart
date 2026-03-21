@@ -373,8 +373,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
                             : 'Preview system prompt',
                         icon: Icon(
                           _showSystemPromptPreview
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
+                              ? Icons.edit_outlined
+                              : Icons.preview_outlined,
                           size: 20,
                         ),
                         onPressed: () {
