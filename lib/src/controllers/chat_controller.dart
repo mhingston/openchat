@@ -1201,25 +1201,34 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     for (final (String query, List<WebSearchResult> results,
         List<WebPageExcerpt> excerpts) in completedRounds) {
       summary.writeln('Query: "$query"');
-      summary.writeln(
-        'Found ${results.length} search result(s) and ${excerpts.length} page excerpt(s).',
-      );
-      for (final WebSearchResult r in results.take(3)) {
-        summary.writeln('  - ${r.title}: ${r.snippet.length > 80 ? '${r.snippet.substring(0, 80)}…' : r.snippet}');
+      for (final WebSearchResult r in results.take(5)) {
+        final String snippet = r.snippet.length > 120
+            ? '${r.snippet.substring(0, 120)}…'
+            : r.snippet;
+        summary.writeln('  [result] ${r.title}: $snippet');
+      }
+      for (final WebPageExcerpt e in excerpts.take(3)) {
+        final String excerpt = e.excerpt.length > 200
+            ? '${e.excerpt.substring(0, 200)}…'
+            : e.excerpt;
+        summary.writeln('  [page] ${e.title}: $excerpt');
       }
     }
 
     const String systemPrompt =
-        'You are a research planner. Your job is to decide whether additional '
-        'web searches are needed to fully answer a user question, and if so, '
-        'what to search for. Reply with ONLY a newline-separated list of up to '
-        '3 specific search queries (no numbering, no explanations), or reply '
-        'with the single word DONE if the existing research is sufficient.';
+        'You are a research planner deciding whether more web searches are '
+        'needed. Default to DONE — only request follow-up searches if there '
+        'is a clear, specific gap in the evidence that extra searches would '
+        'fill. If the gathered results already cover the question, reply with '
+        'the single word DONE. If and only if a specific gap exists, reply '
+        'with a newline-separated list of up to 3 targeted search queries '
+        '(no numbering, no explanations, nothing else).';
 
     final String userContent =
         'User question: $userQuery\n\n'
         'Research gathered so far:\n${summary.toString().trim()}\n\n'
-        'List follow-up search queries or reply DONE.';
+        'Is the research sufficient to fully answer the question? '
+        'Reply DONE or list specific follow-up queries.';
 
     final String? response = await _apiClient.completeChat(
       config: config,
