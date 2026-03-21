@@ -46,6 +46,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
 
   final List<ChatThread> _threads = <ChatThread>[];
   final List<PromptTemplate> _prompts = <PromptTemplate>[];
+  final Map<String, String> _folders = <String, String>{};
   String? _selectedThreadId;
   bool _initialized = false;
   bool _isSending = false;
@@ -59,6 +60,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
   List<ChatThread> get threads => List<ChatThread>.unmodifiable(_threads);
   List<PromptTemplate> get prompts =>
       List<PromptTemplate>.unmodifiable(_prompts);
+  Map<String, String> get folders => Map<String, String>.unmodifiable(_folders);
   bool get initialized => _initialized;
   bool get isSending => _isSending;
   String? get lastError => _lastError;
@@ -127,6 +129,11 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       ..clear()
       ..addAll(storedPrompts);
 
+    final Map<String, String> storedFolders = await _chatStore.loadFolders();
+    _folders
+      ..clear()
+      ..addAll(storedFolders);
+
     _sortThreads();
     _selectedThreadId = _threads.isEmpty ? null : _threads.first.id;
     _lastError = null;
@@ -181,6 +188,64 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> deletePrompt(String promptId) async {
     _prompts.removeWhere((PromptTemplate p) => p.id == promptId);
     await _persistPrompts();
+    notifyListeners();
+  }
+
+  // --- Folder CRUD ---
+
+  /// Returns a new folder id and stores the folder.
+  String createFolder(String name) {
+    final String id = _newId('folder');
+    _folders[id] = name.trim().isEmpty ? 'New folder' : name.trim();
+    notifyListeners();
+    _persistFolders();
+    return id;
+  }
+
+  /// Removes a folder and clears it from any threads that belonged to it.
+  Future<void> deleteFolder(String folderId) async {
+    if (!_folders.containsKey(folderId)) return;
+    _folders.remove(folderId);
+    for (int i = 0; i < _threads.length; i++) {
+      if (_threads[i].folderId == folderId) {
+        _threads[i] = _threads[i].copyWith(folderId: null, folderName: null);
+      }
+    }
+    await _persist();
+    await _persistFolders();
+    notifyListeners();
+  }
+
+  /// Renames an existing folder and updates all threads that reference it.
+  Future<void> renameFolder(String folderId, String name) async {
+    if (!_folders.containsKey(folderId)) return;
+    final String trimmed = name.trim().isEmpty ? _folders[folderId]! : name.trim();
+    _folders[folderId] = trimmed;
+    for (int i = 0; i < _threads.length; i++) {
+      if (_threads[i].folderId == folderId) {
+        _threads[i] = _threads[i].copyWith(folderName: trimmed);
+      }
+    }
+    await _persist();
+    await _persistFolders();
+    notifyListeners();
+  }
+
+  /// Moves a thread to a folder. Pass [folderId] == null to remove from folder.
+  Future<void> moveThreadToFolder(String threadId, String? folderId) async {
+    final int index =
+        _threads.indexWhere((ChatThread t) => t.id == threadId);
+    if (index == -1) return;
+    if (folderId == null) {
+      _threads[index] =
+          _threads[index].copyWith(folderId: null, folderName: null);
+    } else {
+      final String? name = _folders[folderId];
+      if (name == null) return;
+      _threads[index] =
+          _threads[index].copyWith(folderId: folderId, folderName: name);
+    }
+    await _persist();
     notifyListeners();
   }
 
@@ -889,6 +954,10 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> _persist() async {
     await _chatStore.saveThreads(_threads);
+  }
+
+  Future<void> _persistFolders() async {
+    await _chatStore.saveFolders(_folders);
   }
 
   Future<void> _persistPrompts() async {

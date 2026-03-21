@@ -1,5 +1,7 @@
 import 'chat_message.dart';
 
+const Object _sentinel = Object();
+
 class ChatThread {
   const ChatThread({
     required this.id,
@@ -13,6 +15,8 @@ class ChatThread {
     this.systemPromptOverride,
     this.modelOverride,
     this.temperatureOverride,
+    this.folderId,
+    this.folderName,
   });
 
   factory ChatThread.fromJson(Map<String, dynamic> json) {
@@ -36,6 +40,8 @@ class ChatThread {
       systemPromptOverride: json['systemPromptOverride'] as String?,
       modelOverride: json['modelOverride'] as String?,
       temperatureOverride: (json['temperatureOverride'] as num?)?.toDouble(),
+      folderId: json['folderId'] as String?,
+      folderName: json['folderName'] as String?,
     );
   }
 
@@ -50,6 +56,8 @@ class ChatThread {
   final String? systemPromptOverride;
   final String? modelOverride;
   final double? temperatureOverride;
+  final String? folderId;
+  final String? folderName;
 
   String get previewText {
     if (messages.isEmpty) {
@@ -78,6 +86,8 @@ class ChatThread {
     String? systemPromptOverride,
     String? modelOverride,
     double? temperatureOverride,
+    Object? folderId = _sentinel,
+    Object? folderName = _sentinel,
   }) {
     return ChatThread(
       id: id ?? this.id,
@@ -91,6 +101,9 @@ class ChatThread {
       systemPromptOverride: systemPromptOverride ?? this.systemPromptOverride,
       modelOverride: modelOverride ?? this.modelOverride,
       temperatureOverride: temperatureOverride ?? this.temperatureOverride,
+      folderId: folderId == _sentinel ? this.folderId : folderId as String?,
+      folderName:
+          folderName == _sentinel ? this.folderName : folderName as String?,
     );
   }
 
@@ -109,6 +122,8 @@ class ChatThread {
         'systemPromptOverride': systemPromptOverride,
       if (modelOverride != null) 'modelOverride': modelOverride,
       if (temperatureOverride != null) 'temperatureOverride': temperatureOverride,
+      if (folderId != null) 'folderId': folderId,
+      if (folderName != null) 'folderName': folderName,
     };
   }
 }

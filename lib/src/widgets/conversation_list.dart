@@ -13,6 +13,8 @@ class ConversationList extends StatelessWidget {
     required this.onRenameThread,
     required this.onDuplicateThread,
     required this.onDeleteThread,
+    required this.folders,
+    required this.onMoveToFolder,
   });
 
   final List<ChatThread> threads;
@@ -22,6 +24,58 @@ class ConversationList extends StatelessWidget {
   final Future<void> Function(String threadId) onRenameThread;
   final Future<void> Function(String threadId) onDuplicateThread;
   final Future<void> Function(String threadId) onDeleteThread;
+  final Map<String, String> folders;
+  final Future<void> Function(String threadId, String? folderId) onMoveToFolder;
+
+  Future<void> _showMoveToFolderDialog(
+    BuildContext context,
+    ChatThread thread,
+  ) async {
+    final String? chosenFolderId = await showDialog<String>(
+      context: context,
+      builder: (BuildContext ctx) {
+        return SimpleDialog(
+          title: const Text('Move to folder'),
+          children: <Widget>[
+            if (thread.folderId != null)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, ''),
+                child: const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.folder_off_outlined),
+                  title: Text('Remove from folder'),
+                ),
+              ),
+            for (final MapEntry<String, String> entry in folders.entries)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, entry.key),
+                child: ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.folder_outlined,
+                    color: thread.folderId == entry.key
+                        ? ctx.openChatPalette.accent
+                        : null,
+                  ),
+                  title: Text(entry.value),
+                  trailing: thread.folderId == entry.key
+                      ? Icon(Icons.check, color: ctx.openChatPalette.accent)
+                      : null,
+                ),
+              ),
+            if (folders.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                child: Text('No folders yet. Create one in the drawer.'),
+              ),
+          ],
+        );
+      },
+    );
+    if (chosenFolderId == null) return;
+    // Empty string means "remove from folder"
+    await onMoveToFolder(thread.id, chosenFolderId.isEmpty ? null : chosenFolderId);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -151,6 +205,31 @@ class ConversationList extends StatelessWidget {
                     ],
                   ),
                 ],
+                if (thread.folderName != null) ...<Widget>[
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        Icons.folder_outlined,
+                        size: 11,
+                        color: context.openChatPalette.accent,
+                      ),
+                      const SizedBox(width: 3),
+                      Flexible(
+                        child: Text(
+                          thread.folderName!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: context.openChatPalette.accent,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
             trailing: PopupMenuButton<_ConversationAction>(
@@ -169,6 +248,9 @@ class ConversationList extends StatelessWidget {
                     return;
                   case _ConversationAction.delete:
                     onDeleteThread(thread.id);
+                    return;
+                  case _ConversationAction.moveToFolder:
+                    _showMoveToFolderDialog(context, thread);
                     return;
                 }
               },
@@ -202,6 +284,14 @@ class ConversationList extends StatelessWidget {
                     title: Text('Duplicate'),
                   ),
                 ),
+                const PopupMenuItem<_ConversationAction>(
+                  value: _ConversationAction.moveToFolder,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.drive_file_move_outline),
+                    title: Text('Move to folder'),
+                  ),
+                ),
                 PopupMenuItem<_ConversationAction>(
                   value: _ConversationAction.delete,
                   child: ListTile(
@@ -228,4 +318,5 @@ class ConversationList extends StatelessWidget {
   }
 }
 
-enum _ConversationAction { pin, rename, duplicate, delete }
+enum _ConversationAction { pin, rename, duplicate, delete, moveToFolder }
+

@@ -10,6 +10,7 @@ class ChatStore {
   ChatStore(this._preferences);
 
   static const String _storageKey = 'openchat.chatThreads';
+  static const String _foldersKey = 'openchat.folders';
 
   final SharedPreferences _preferences;
 
@@ -42,6 +43,25 @@ class ChatStore {
     final List<Map<String, dynamic>> serialized =
         threads.map((ChatThread thread) => thread.toJson()).toList();
     await _preferences.setString(_storageKey, jsonEncode(serialized));
+  }
+
+  Future<void> saveFolders(Map<String, String> folders) async {
+    await _preferences.setString(_foldersKey, jsonEncode(folders));
+  }
+
+  Future<Map<String, String>> loadFolders() async {
+    final String? rawValue = _preferences.getString(_foldersKey);
+    if (rawValue == null || rawValue.isEmpty) {
+      return <String, String>{};
+    }
+    final Object? decoded = jsonDecode(rawValue);
+    if (decoded is! Map<String, dynamic>) {
+      return <String, String>{};
+    }
+    return decoded.map(
+      (String key, dynamic value) =>
+          MapEntry<String, String>(key, value as String),
+    );
   }
 
   List<ConversationSearchResult> searchThreads({

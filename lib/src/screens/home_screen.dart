@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 
 import '../controllers/chat_controller.dart';
@@ -551,6 +552,7 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
+        ),
         ),
       ],
     );
