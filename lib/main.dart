@@ -12,6 +12,7 @@ import 'src/services/openai_compatible_client.dart';
 import 'src/services/prompt_template_store.dart';
 import 'src/services/provider_config_store.dart';
 import 'src/services/request_foreground_service.dart';
+import 'src/services/tts_service.dart';
 import 'src/services/voice_input_service.dart';
 
 Future<void> main() async {
@@ -56,6 +57,9 @@ Future<void> main() async {
         ChangeNotifierProvider<ChatController>.value(value: chatController),
         ChangeNotifierProvider<VoiceInputService>(
           create: (_) => VoiceInputService(),
+        ),
+        ChangeNotifierProvider<TtsService>(
+          create: (_) => TtsService(),
         ),
       ],
       child: const OpenChatApp(),
