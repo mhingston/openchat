@@ -1064,16 +1064,15 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     final Set<String> allFetchedUrls = <String>{};
     final List<String> allSources = <String>[];
 
-    // --- Round 1: use the heuristic query ---
-    _searchStatus = 'Researching… (round 1 of $_deepResearchMaxRounds)';
+    // --- Initial search: always performed, does not count toward maxRounds ---
+    _searchStatus = 'Searching the web…';
     notifyListeners();
 
     final List<WebSearchResult> round1Results =
         await _webSearchService.search(initialQuery);
 
     if (round1Results.isNotEmpty) {
-      _searchStatus =
-          'Browsing pages… (round 1 of $_deepResearchMaxRounds)';
+      _searchStatus = 'Browsing pages…';
       notifyListeners();
 
       final List<WebPageExcerpt> round1Excerpts =
@@ -1093,14 +1092,14 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       allSources.addAll(_collectSources(round1Results, round1Excerpts));
     }
 
-    // --- Rounds 2+: ask the LLM what to search for next ---
+    // --- Follow-up rounds: _deepResearchMaxRounds controls how many ---
     final ProviderConfig? planningConfig = _currentPlanningConfig();
 
-    for (int round = 2;
+    for (int round = 1;
         round <= _deepResearchMaxRounds && planningConfig != null;
         round += 1) {
       _searchStatus =
-          'Planning research… (round $round of $_deepResearchMaxRounds)';
+          'Planning follow-up research… ($round of $_deepResearchMaxRounds)';
       notifyListeners();
 
       final List<String> followUpQueries = await _planFollowUpSearches(
@@ -1114,7 +1113,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       }
 
       _searchStatus =
-          'Researching… (round $round of $_deepResearchMaxRounds)';
+          'Searching… (follow-up $round of $_deepResearchMaxRounds)';
       notifyListeners();
 
       final List<WebSearchResult> roundResults =
@@ -1128,7 +1127,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       }
 
       _searchStatus =
-          'Browsing pages… (round $round of $_deepResearchMaxRounds)';
+          'Browsing pages… (follow-up $round of $_deepResearchMaxRounds)';
       notifyListeners();
 
       final String combinedQuery = followUpQueries.join('; ');

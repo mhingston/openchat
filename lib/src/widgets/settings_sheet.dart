@@ -576,7 +576,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
                       Text(
                         _deepResearchMaxRounds == 0
                             ? 'Single-pass search (fastest)'
-                            : 'Agent searches up to $_deepResearchMaxRounds time${_deepResearchMaxRounds == 1 ? '' : 's'} before answering',
+                            : 'Follows up with $_deepResearchMaxRounds additional search${_deepResearchMaxRounds == 1 ? '' : 'es'} if needed',
                         style:
                             Theme.of(context).textTheme.bodySmall?.copyWith(
                                   color: context.openChatPalette.mutedText,
