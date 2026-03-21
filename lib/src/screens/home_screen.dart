@@ -505,12 +505,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         Expanded(
-          child: ListView.separated(
-            controller: _messagesScrollController,
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-            itemCount: currentThread.messages.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (BuildContext context, int index) {
+          child: SlidableAutoCloseBehavior(
+            child: ListView.separated(
+              controller: _messagesScrollController,
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              itemCount: currentThread.messages.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (BuildContext context, int index) {
               final ChatMessage message = currentThread.messages[index];
               final bool canRetry =
                   index == currentThread.messages.length - 1 &&

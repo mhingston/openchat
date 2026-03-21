@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -41,7 +42,7 @@ class ChatMessageBubble extends StatelessWidget {
         ? context.openChatPalette.userBubble
         : context.openChatPalette.assistantBubble;
 
-    return Align(
+    final Widget bubble = Align(
       alignment: alignment,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
@@ -178,6 +179,55 @@ class ChatMessageBubble extends StatelessWidget {
           ),
         ),
       ),
+    );
+
+    if (message.isStreaming) return bubble;
+
+    return Slidable(
+      key: ValueKey(message.id),
+      startActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.22,
+        children: <Widget>[
+          SlidableAction(
+            onPressed: (_) {
+              HapticFeedback.lightImpact();
+              onCopy?.call();
+            },
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            icon: Icons.content_copy_rounded,
+            label: 'Copy',
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(24),
+              bottomLeft: Radius.circular(24),
+            ),
+          ),
+        ],
+      ),
+      endActionPane: onRetry != null
+          ? ActionPane(
+              motion: const DrawerMotion(),
+              extentRatio: 0.22,
+              children: <Widget>[
+                SlidableAction(
+                  onPressed: (_) {
+                    HapticFeedback.lightImpact();
+                    onRetry?.call();
+                  },
+                  backgroundColor: Colors.amber.shade700,
+                  foregroundColor: Colors.white,
+                  icon: Icons.refresh_rounded,
+                  label: 'Retry',
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
+                  ),
+                ),
+              ],
+            )
+          : null,
+      child: bubble,
     );
   }
 

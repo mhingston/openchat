@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../controllers/settings_controller.dart';
 import '../models/provider_config.dart';
 import '../theme/app_theme.dart';
+import 'chat_markdown.dart';
 
 class SettingsSheet extends StatefulWidget {
   const SettingsSheet({
@@ -58,6 +59,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
   bool _fetchingModels = false;
   bool _saving = false;
   bool _obscureApiKey = true;
+  bool _showSystemPromptPreview = false;
   late final TextEditingController _jinaApiKeyController;
   late final TextEditingController _tavilyApiKeyController;
   late final TextEditingController _firecrawlApiKeyController;
@@ -356,15 +358,57 @@ class _SettingsSheetState extends State<SettingsSheet> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: _systemPromptController,
-                    minLines: 3,
-                    maxLines: 6,
-                    decoration: const InputDecoration(
-                      labelText: 'System prompt',
-                      hintText: 'Optional instruction for the assistant',
-                    ),
+                  Row(
+                    children: <Widget>[
+                      Text(
+                        'System prompt',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: context.openChatPalette.mutedText,
+                            ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: _showSystemPromptPreview
+                            ? 'Edit system prompt'
+                            : 'Preview system prompt',
+                        icon: Icon(
+                          _showSystemPromptPreview
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _showSystemPromptPreview =
+                                !_showSystemPromptPreview;
+                          });
+                        },
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 4),
+                  if (_showSystemPromptPreview &&
+                      _systemPromptController.text.isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: context.openChatPalette.surfaceRaised,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: context.openChatPalette.border),
+                      ),
+                      child: ChatMarkdown(data: _systemPromptController.text),
+                    )
+                  else
+                    TextField(
+                      controller: _systemPromptController,
+                      minLines: 3,
+                      maxLines: 6,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        hintText: 'Optional instruction for the assistant',
+                      ),
+                    ),
                   const SizedBox(height: 20),
                   Text(
                     'Preferences',

@@ -74,6 +74,32 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     _streamCompleter = null;
   }
 
+  static bool _isRetryableError(Object error) {
+    final String msg = error.toString().toLowerCase();
+    return msg.contains('socketexception') ||
+        msg.contains('failed host lookup') ||
+        msg.contains('connection refused') ||
+        msg.contains('connection reset') ||
+        msg.contains('connection closed') ||
+        msg.contains('timeoutexception') ||
+        msg.contains('429') ||
+        msg.contains('502') ||
+        msg.contains('503') ||
+        msg.contains('rate limit') ||
+        msg.contains('overloaded');
+  }
+
+  static Duration _retryDelay(int attempt) {
+    switch (attempt) {
+      case 1:
+        return const Duration(seconds: 2);
+      case 2:
+        return const Duration(seconds: 5);
+      default:
+        return const Duration(seconds: 10);
+    }
+  }
+
   ChatThread? get currentThread {
     if (_selectedThreadId == null) {
       return null;
@@ -915,9 +941,9 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       // chunks loses structural markers like <think> before the matching </think>
       // has arrived, causing think-block content to leak into the displayed text.
       final StringBuffer rawBuffer = StringBuffer();
-      // On Android, Samsung's battery optimiser can cut DNS even with a foreground
-      // service.  Retry once after a short pause before surfacing the error.
-      const int maxAttempts = 2;
+      // Auto-retry on transient errors (network blips, rate limits, 502/503).
+      // Attempts: 1 initial + 3 retries with exponential back-off (2 s, 5 s, 10 s).
+      const int maxAttempts = 4;
       for (int attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           _streamCompleter = Completer<void>();
@@ -987,14 +1013,14 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         } catch (error) {
           _activeStreamSubscription = null;
           if (_cancelRequested) break;
-          final bool isNetworkError = error.toString().contains('SocketException') ||
-              error.toString().contains('Failed host lookup') ||
-              error.toString().contains('Connection refused') ||
-              error.toString().contains('Connection reset') ||
-              error.toString().contains('Connection closed');
-          if (isNetworkError && attempt < maxAttempts) {
-            // Brief pause to let Android restore DNS after backgrounding.
-            await Future<void>.delayed(const Duration(seconds: 2));
+          if (_isRetryableError(error) && attempt < maxAttempts) {
+            final Duration delay = _retryDelay(attempt);
+            _searchStatus =
+                'Retrying (attempt ${attempt + 1} of $maxAttempts)…';
+            notifyListeners();
+            await Future<void>.delayed(delay);
+            if (_cancelRequested) break;
+            _searchStatus = null;
             rawBuffer.clear();
             continue;
           }
@@ -1004,19 +1030,32 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     } catch (error) {
       if (!_cancelRequested) {
         _lastError = error.toString();
-        final bool isNetworkError = error.toString().contains('SocketException') ||
-            error.toString().contains('Failed host lookup') ||
-            error.toString().contains('Connection refused') ||
-            error.toString().contains('Connection reset') ||
-            error.toString().contains('Connection closed');
-        final String errorMessage = isNetworkError
-            ? 'Network error — the request could not complete.\n\n'
+        final String errorStr = error.toString().toLowerCase();
+        final String errorMessage;
+        if (errorStr.contains('socketexception') ||
+            errorStr.contains('failed host lookup') ||
+            errorStr.contains('connection refused') ||
+            errorStr.contains('connection reset') ||
+            errorStr.contains('connection closed')) {
+          errorMessage = 'Network error — the request could not complete.\n\n'
               'If you backgrounded the app, Android may have cut the '
               'connection. Try disabling battery optimisation for OpenChat '
               'in Android Settings → Apps → OpenChat → Battery.\n\n'
-              '${error.toString()}'
-            : 'Unable to reach the provider right now. '
+              '${error.toString()}';
+        } else if (errorStr.contains('429') || errorStr.contains('rate limit')) {
+          errorMessage = 'Rate limit reached — the provider rejected the '
+              'request after several retries. Wait a moment and try again.\n\n'
+              '${error.toString()}';
+        } else if (errorStr.contains('502') ||
+            errorStr.contains('503') ||
+            errorStr.contains('overloaded')) {
+          errorMessage = 'Provider unavailable — the server was overloaded '
+              'after several retries. Try again shortly.\n\n'
+              '${error.toString()}';
+        } else {
+          errorMessage = 'Unable to reach the provider right now. '
               'Check settings and try again.\n\n${error.toString()}';
+        }
         _updateMessage(
           threadId: thread.id,
           messageId: assistantMessage.id,
