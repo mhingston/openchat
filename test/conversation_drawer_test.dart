@@ -1,22 +1,58 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/testing.dart';
+import 'package:http/http.dart' as http;
+import 'package:openchat/src/controllers/chat_controller.dart';
 import 'package:openchat/src/models/chat_thread.dart';
+import 'package:openchat/src/services/chat_store.dart';
+import 'package:openchat/src/services/openai_compatible_client.dart';
+import 'package:openchat/src/services/prompt_template_store.dart';
 import 'package:openchat/src/theme/app_theme.dart';
 import 'package:openchat/src/widgets/conversation_drawer.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+Future<ChatController> _createController() async {
+  SharedPreferences.setMockInitialValues(<String, Object>{});
+  final SharedPreferences prefs = await SharedPreferences.getInstance();
+  final ChatController controller = ChatController(
+    chatStore: ChatStore(prefs),
+    promptTemplateStore: PromptTemplateStore(prefs),
+    apiClient: OpenAiCompatibleClient(
+      isWebOverride: false,
+      httpClient: MockClient((_) async => http.Response('{}', 200)),
+    ),
+  );
+  await controller.initialize();
+  return controller;
+}
+
+Widget _wrapWithProvider(ChatController controller, Widget child) {
+  return ChangeNotifierProvider<ChatController>.value(
+    value: controller,
+    child: MaterialApp(
+      theme: AppTheme.lightTheme(),
+      home: child,
+    ),
+  );
+}
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   testWidgets('drawer exposes export and import actions', (
     WidgetTester tester,
   ) async {
+    final ChatController controller = await _createController();
     int createThreadCount = 0;
     int exportAllCount = 0;
     int importCount = 0;
     int searchCount = 0;
 
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.lightTheme(),
-        home: ConversationDrawer(
+      _wrapWithProvider(
+        controller,
+        ConversationDrawer(
           threads: <ChatThread>[
             ChatThread(
               id: 'thread-1',
@@ -68,12 +104,13 @@ void main() {
   testWidgets('drawer lets users pin a conversation', (
     WidgetTester tester,
   ) async {
+    final ChatController controller = await _createController();
     int pinCount = 0;
 
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.lightTheme(),
-        home: ConversationDrawer(
+      _wrapWithProvider(
+        controller,
+        ConversationDrawer(
           threads: <ChatThread>[
             ChatThread(
               id: 'thread-1',
