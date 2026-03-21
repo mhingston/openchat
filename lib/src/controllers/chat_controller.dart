@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../models/attachment.dart';
@@ -48,6 +49,9 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
   String? _selectedThreadId;
   bool _initialized = false;
   bool _isSending = false;
+  bool _cancelRequested = false;
+  StreamSubscription<ChatCompletionChunk>? _activeStreamSubscription;
+  Completer<void>? _streamCompleter;
   String? _lastError;
   String? _searchStatus;
   int _nextLocalId = 0;
@@ -60,6 +64,15 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
   String? get lastError => _lastError;
   String? get searchStatus => _searchStatus;
   bool get hasThreads => _threads.isNotEmpty;
+
+  void cancelStreaming() {
+    if (!_isSending) return;
+    _cancelRequested = true;
+    _activeStreamSubscription?.cancel();
+    _activeStreamSubscription = null;
+    _streamCompleter?.complete();
+    _streamCompleter = null;
+  }
 
   ChatThread? get currentThread {
     if (_selectedThreadId == null) {
@@ -392,52 +405,80 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
 
     try {
       await RequestForegroundService.start();
-      await for (final ChatCompletionChunk chunk
-          in _apiClient.streamChatCompletion(
+      _streamCompleter = Completer<void>();
+      _activeStreamSubscription = _apiClient.streamChatCompletion(
         config: config,
         messages: requestMessages,
-      )) {
-        if (chunk.isDone) {
-          _updateMessage(
-            threadId: thread.id,
-            messageId: retryMessage.id,
-            updater: (ChatMessage message) {
-              if (message.text.trim().isEmpty) {
-                return message.copyWith(
-                  text: 'No response received.',
-                  isStreaming: false,
-                  isError: true,
-                );
-              }
-              return message.copyWith(isStreaming: false);
-            },
-          );
-        } else {
-          _updateMessage(
-            threadId: thread.id,
-            messageId: retryMessage.id,
-            updater: (ChatMessage message) => message.copyWith(
-              text: '${message.text}${chunk.delta}',
-              isStreaming: true,
-            ),
-          );
-        }
+      ).listen(
+        (ChatCompletionChunk chunk) {
+          if (_cancelRequested) return;
+          if (chunk.isDone) {
+            _updateMessage(
+              threadId: thread.id,
+              messageId: retryMessage.id,
+              updater: (ChatMessage message) {
+                if (message.text.trim().isEmpty) {
+                  return message.copyWith(
+                    text: 'No response received.',
+                    isStreaming: false,
+                    isError: true,
+                  );
+                }
+                return message.copyWith(isStreaming: false);
+              },
+            );
+            HapticFeedback.selectionClick();
+          } else {
+            _updateMessage(
+              threadId: thread.id,
+              messageId: retryMessage.id,
+              updater: (ChatMessage message) => message.copyWith(
+                text: '${message.text}${chunk.delta}',
+                isStreaming: true,
+              ),
+            );
+          }
+          notifyListeners();
+        },
+        onDone: () {
+          _streamCompleter?.complete();
+          _streamCompleter = null;
+        },
+        onError: (Object error) {
+          _streamCompleter?.completeError(error);
+          _streamCompleter = null;
+        },
+        cancelOnError: true,
+      );
+      await _streamCompleter!.future;
+      _activeStreamSubscription = null;
+    } catch (error) {
+      _activeStreamSubscription = null;
+      if (!_cancelRequested) {
+        _lastError = error.toString();
+        _updateMessage(
+          threadId: thread.id,
+          messageId: retryMessage.id,
+          updater: (ChatMessage message) => message.copyWith(
+            text:
+                'Unable to reach the provider right now. Check settings and try again.\n\n${error.toString()}',
+            isStreaming: false,
+            isError: true,
+          ),
+        );
         notifyListeners();
       }
-    } catch (error) {
-      _lastError = error.toString();
-      _updateMessage(
-        threadId: thread.id,
-        messageId: retryMessage.id,
-        updater: (ChatMessage message) => message.copyWith(
-          text:
-              'Unable to reach the provider right now. Check settings and try again.\n\n${error.toString()}',
-          isStreaming: false,
-          isError: true,
-        ),
-      );
-      notifyListeners();
     } finally {
+      final bool wasCancelled = _cancelRequested;
+      _cancelRequested = false;
+      _activeStreamSubscription = null;
+      if (wasCancelled) {
+        _updateMessage(
+          threadId: thread.id,
+          messageId: retryMessage.id,
+          updater: (ChatMessage msg) => msg.copyWith(isStreaming: false),
+        );
+      }
       _isSending = false;
       unawaited(RequestForegroundService.stop());
       _sortThreads();
@@ -879,56 +920,73 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       const int maxAttempts = 2;
       for (int attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-          await for (final ChatCompletionChunk chunk
-              in _apiClient.streamChatCompletion(
+          _streamCompleter = Completer<void>();
+          _activeStreamSubscription = _apiClient.streamChatCompletion(
             config: effectiveConfig,
             messages: requestMessages,
-          )) {
-            if (chunk.isDone) {
-              final String sanitizedText =
-                  _sanitizeAssistantOutput(rawBuffer.toString());
-              _updateMessage(
-                threadId: thread.id,
-                messageId: assistantMessage.id,
-                updater: (ChatMessage message) {
-                  if (sanitizedText.trim().isEmpty) {
-                    return message.copyWith(
-                      text: 'No response received.',
-                      isStreaming: false,
-                      isError: true,
-                    );
-                  }
-                  return message.copyWith(
-                    text: sanitizedText,
-                    isStreaming: false,
-                    sources: sources,
-                  );
-                },
-              );
-              if (autoTitle) {
-                unawaited(_tryAutoGenerateTitle(
+          ).listen(
+            (ChatCompletionChunk chunk) {
+              if (_cancelRequested) return;
+              if (chunk.isDone) {
+                final String sanitizedText =
+                    _sanitizeAssistantOutput(rawBuffer.toString());
+                _updateMessage(
                   threadId: thread.id,
-                  assistantMessageId: assistantMessage.id,
-                  config: effectiveConfig,
-                ));
+                  messageId: assistantMessage.id,
+                  updater: (ChatMessage message) {
+                    if (sanitizedText.trim().isEmpty) {
+                      return message.copyWith(
+                        text: 'No response received.',
+                        isStreaming: false,
+                        isError: true,
+                      );
+                    }
+                    return message.copyWith(
+                      text: sanitizedText,
+                      isStreaming: false,
+                      sources: sources,
+                    );
+                  },
+                );
+                HapticFeedback.selectionClick();
+                if (autoTitle) {
+                  unawaited(_tryAutoGenerateTitle(
+                    threadId: thread.id,
+                    assistantMessageId: assistantMessage.id,
+                    config: effectiveConfig,
+                  ));
+                }
+              } else {
+                rawBuffer.write(chunk.delta);
+                final String sanitizedText =
+                    _sanitizeAssistantOutput(rawBuffer.toString());
+                _updateMessage(
+                  threadId: thread.id,
+                  messageId: assistantMessage.id,
+                  updater: (ChatMessage message) => message.copyWith(
+                    text: sanitizedText,
+                    isStreaming: true,
+                  ),
+                );
               }
-            } else {
-              rawBuffer.write(chunk.delta);
-              final String sanitizedText =
-                  _sanitizeAssistantOutput(rawBuffer.toString());
-              _updateMessage(
-                threadId: thread.id,
-                messageId: assistantMessage.id,
-                updater: (ChatMessage message) => message.copyWith(
-                  text: sanitizedText,
-                  isStreaming: true,
-                ),
-              );
-            }
-            notifyListeners();
-          }
+              notifyListeners();
+            },
+            onDone: () {
+              _streamCompleter?.complete();
+              _streamCompleter = null;
+            },
+            onError: (Object error) {
+              _streamCompleter?.completeError(error);
+              _streamCompleter = null;
+            },
+            cancelOnError: true,
+          );
+          await _streamCompleter!.future;
+          _activeStreamSubscription = null;
           break; // success — exit retry loop
         } catch (error) {
+          _activeStreamSubscription = null;
+          if (_cancelRequested) break;
           final bool isNetworkError = error.toString().contains('SocketException') ||
               error.toString().contains('Failed host lookup') ||
               error.toString().contains('Connection refused') ||
@@ -944,31 +1002,43 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         }
       }
     } catch (error) {
-      _lastError = error.toString();
-      final bool isNetworkError = error.toString().contains('SocketException') ||
-          error.toString().contains('Failed host lookup') ||
-          error.toString().contains('Connection refused') ||
-          error.toString().contains('Connection reset') ||
-          error.toString().contains('Connection closed');
-      final String errorMessage = isNetworkError
-          ? 'Network error — the request could not complete.\n\n'
-            'If you backgrounded the app, Android may have cut the '
-            'connection. Try disabling battery optimisation for OpenChat '
-            'in Android Settings → Apps → OpenChat → Battery.\n\n'
-            '${error.toString()}'
-          : 'Unable to reach the provider right now. '
-            'Check settings and try again.\n\n${error.toString()}';
-      _updateMessage(
-        threadId: thread.id,
-        messageId: assistantMessage.id,
-        updater: (ChatMessage message) => message.copyWith(
-          text: errorMessage,
-          isStreaming: false,
-          isError: true,
-        ),
-      );
-      notifyListeners();
+      if (!_cancelRequested) {
+        _lastError = error.toString();
+        final bool isNetworkError = error.toString().contains('SocketException') ||
+            error.toString().contains('Failed host lookup') ||
+            error.toString().contains('Connection refused') ||
+            error.toString().contains('Connection reset') ||
+            error.toString().contains('Connection closed');
+        final String errorMessage = isNetworkError
+            ? 'Network error — the request could not complete.\n\n'
+              'If you backgrounded the app, Android may have cut the '
+              'connection. Try disabling battery optimisation for OpenChat '
+              'in Android Settings → Apps → OpenChat → Battery.\n\n'
+              '${error.toString()}'
+            : 'Unable to reach the provider right now. '
+              'Check settings and try again.\n\n${error.toString()}';
+        _updateMessage(
+          threadId: thread.id,
+          messageId: assistantMessage.id,
+          updater: (ChatMessage message) => message.copyWith(
+            text: errorMessage,
+            isStreaming: false,
+            isError: true,
+          ),
+        );
+        notifyListeners();
+      }
     } finally {
+      final bool wasCancelled = _cancelRequested;
+      _cancelRequested = false;
+      _activeStreamSubscription = null;
+      if (wasCancelled) {
+        _updateMessage(
+          threadId: thread.id,
+          messageId: assistantMessage.id,
+          updater: (ChatMessage msg) => msg.copyWith(isStreaming: false),
+        );
+      }
       _isSending = false;
       unawaited(RequestForegroundService.stop());
       _searchStatus = null;

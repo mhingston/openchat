@@ -4,9 +4,12 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/attachment.dart';
 import '../models/chat_message.dart';
+import '../services/tts_service.dart';
 import '../theme/app_theme.dart';
 import 'attachment_file_image_provider.dart';
 import 'chat_markdown.dart';
@@ -79,6 +82,7 @@ class ChatMessageBubble extends StatelessWidget {
                         onSelected: (_MessageAction action) {
                           switch (action) {
                             case _MessageAction.copy:
+                              HapticFeedback.lightImpact();
                               onCopy?.call();
                               return;
                             case _MessageAction.edit:
@@ -88,9 +92,11 @@ class ChatMessageBubble extends StatelessWidget {
                               onFork?.call();
                               return;
                             case _MessageAction.retry:
+                              HapticFeedback.lightImpact();
                               onRetry?.call();
                               return;
                             case _MessageAction.delete:
+                              HapticFeedback.mediumImpact();
                               onDelete?.call();
                               return;
                           }
@@ -157,6 +163,7 @@ class ChatMessageBubble extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
                       _InlineCopyButton(text: message.text),
+                      _InlineSpeakerButton(message: message),
                     ],
                   ),
                 ],
@@ -281,6 +288,39 @@ class _InlineCopyButtonState extends State<_InlineCopyButton> {
   }
 }
 
+class _InlineSpeakerButton extends StatelessWidget {
+  const _InlineSpeakerButton({required this.message});
+
+  final ChatMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    final TtsService ttsService = context.watch<TtsService>();
+    final bool isThisSpeaking = ttsService.speakingMessageId == message.id;
+
+    return TextButton.icon(
+      onPressed: () =>
+          ttsService.speak(message.text, messageId: message.id),
+      icon: Icon(
+        isThisSpeaking
+            ? Icons.stop_circle_outlined
+            : Icons.volume_up_outlined,
+        size: 14,
+      ),
+      label: Text(isThisSpeaking ? 'Stop' : 'Speak'),
+      style: TextButton.styleFrom(
+        foregroundColor: context.openChatPalette.mutedText,
+        minimumSize: Size.zero,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        textStyle: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w500,
+            ),
+      ),
+    );
+  }
+}
+
 class _SourcesFooter extends StatelessWidget {
   const _SourcesFooter({required this.sources});
 
@@ -313,14 +353,24 @@ class _SourcesFooter extends StatelessWidget {
                       ),
                 ),
                 Expanded(
-                  child: SelectableText(
-                    entry.value,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.primary,
-                          decoration: TextDecoration.underline,
-                          decorationColor:
-                              Theme.of(context).colorScheme.primary,
-                        ),
+                  child: GestureDetector(
+                    onTap: () {
+                      final Uri? uri = Uri.tryParse(entry.value);
+                      if (uri != null) {
+                        unawaited(
+                          launchUrl(uri, mode: LaunchMode.externalApplication),
+                        );
+                      }
+                    },
+                    child: SelectableText(
+                      entry.value,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                            decoration: TextDecoration.underline,
+                            decorationColor:
+                                Theme.of(context).colorScheme.primary,
+                          ),
+                    ),
                   ),
                 ),
               ],

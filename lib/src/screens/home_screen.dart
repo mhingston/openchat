@@ -187,6 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       !chatController.isSending,
                   busy:
                       providerConfig.isValidForChat && chatController.isSending,
+                  onCancel: chatController.cancelStreaming,
                   draftText: _editingDraftText,
                   draftVersion: _composerDraftVersion,
                   editingLabel:
@@ -321,6 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _createThread(BuildContext context) async {
     _clearEditingDraft();
+    HapticFeedback.lightImpact();
     await context.read<ChatController>().createThread();
     if (!mounted) {
       return;

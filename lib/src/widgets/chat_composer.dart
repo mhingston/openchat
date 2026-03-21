@@ -18,6 +18,7 @@ class ChatComposer extends StatefulWidget {
     required this.enabled,
     required this.busy,
     required this.onSend,
+    this.onCancel,
     this.draftText,
     this.draftVersion = 0,
     this.editingLabel,
@@ -32,6 +33,7 @@ class ChatComposer extends StatefulWidget {
     List<ChatAttachment> attachments,
     bool useWebSearch,
   ) onSend;
+  final VoidCallback? onCancel;
   final String? draftText;
   final int draftVersion;
   final String? editingLabel;
@@ -488,15 +490,17 @@ class _ChatComposerState extends State<ChatComposer> {
     }
 
     return Tooltip(
-      message: isDesktopOrWeb
-          ? 'Send (${OpenChatKeyboardShortcuts.primaryModifierLabel}+Enter)'
-          : 'Send',
+      message: widget.busy
+          ? 'Stop'
+          : isDesktopOrWeb
+              ? 'Send (${OpenChatKeyboardShortcuts.primaryModifierLabel}+Enter)'
+              : 'Send',
       child: SizedBox(
         height: buttonSize,
         width: buttonSize,
         child: FilledButton(
           key: const Key('chat-composer-send-button'),
-          onPressed: canSend ? _submit : null,
+          onPressed: widget.busy ? widget.onCancel : (canSend ? _submit : null),
           style: FilledButton.styleFrom(
             padding: EdgeInsets.zero,
             shape: RoundedRectangleBorder(
@@ -504,11 +508,7 @@ class _ChatComposerState extends State<ChatComposer> {
             ),
           ),
           child: widget.busy
-              ? const SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
+              ? const Icon(Icons.stop_rounded)
               : const Icon(Icons.arrow_upward_rounded),
         ),
       ),
@@ -719,6 +719,8 @@ class _ChatComposerState extends State<ChatComposer> {
     if (!mounted || !sent) {
       return;
     }
+
+    HapticFeedback.lightImpact();
 
     // Ownership of attachment files transfers to the saved message — do NOT
     // delete the files here. Only clear the in-memory list.
