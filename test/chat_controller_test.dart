@@ -144,13 +144,19 @@ void main() {
           await SharedPreferences.getInstance();
       final ChatStore store = ChatStore(preferences);
       late Map<String, dynamic> requestBody;
+      int apiCallCount = 0;
       final ChatController controller = ChatController(
         chatStore: store,
         promptTemplateStore: PromptTemplateStore(preferences),
         apiClient: OpenAiCompatibleClient(
           isWebOverride: false,
           httpClient: MockClient((http.Request request) async {
-            requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+            apiCallCount++;
+            // Only capture the first call (web search context call); subsequent
+            // calls are auto-title generation and should not overwrite requestBody.
+            if (apiCallCount == 1) {
+              requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+            }
             return http.Response(
               jsonEncode(<String, Object>{
                 'choices': <Map<String, Object>>[
@@ -228,6 +234,7 @@ void main() {
             );
           }),
         ),
+        deepResearchMaxRounds: 0,
       );
       await controller.initialize();
 
@@ -422,13 +429,19 @@ void main() {
           await SharedPreferences.getInstance();
       final ChatStore store = ChatStore(preferences);
       late Map<String, dynamic> requestBody;
+      int apiCallCount = 0;
       final ChatController controller = ChatController(
         chatStore: store,
         promptTemplateStore: PromptTemplateStore(preferences),
         apiClient: OpenAiCompatibleClient(
           isWebOverride: false,
           httpClient: MockClient((http.Request request) async {
-            requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+            apiCallCount++;
+            // Only capture the first call (web search context call); subsequent
+            // calls are auto-title generation and should not overwrite requestBody.
+            if (apiCallCount == 1) {
+              requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+            }
             return http.Response(
               jsonEncode(<String, Object>{
                 'choices': <Map<String, Object>>[
@@ -467,6 +480,7 @@ void main() {
             return http.Response('blocked', 403);
           }),
         ),
+        deepResearchMaxRounds: 0,
       );
       await controller.initialize();
 
