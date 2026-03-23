@@ -10,6 +10,8 @@ const Set<String> _defaultAllowedHosts = <String>{
   'api.groq.com',
   'api.together.xyz',
   'api.deepseek.com',
+  'api.anthropic.com',
+  'opencode.ai',
 };
 
 final Set<String> _allowedHosts = _resolveAllowedHosts();
@@ -180,7 +182,9 @@ bool _shouldForwardRequestHeader(String name) {
   return name == 'authorization' ||
       name == 'content-type' ||
       name == 'accept' ||
-      name == 'accept-language';
+      name == 'accept-language' ||
+      name == 'x-api-key' ||
+      name == 'anthropic-version';
 }
 
 bool _shouldForwardResponseHeader(String name) {
@@ -199,7 +203,7 @@ void _writeCorsHeaders(HttpResponse response) {
     ..set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
     ..set(
       'Access-Control-Allow-Headers',
-      'Authorization, Content-Type, Accept, Accept-Language',
+      'Authorization, Content-Type, Accept, Accept-Language, X-Api-Key, Anthropic-Version',
     );
 }
 

@@ -1,6 +1,6 @@
 # OpenChat
 
-OpenChat is a Flutter chat client with a ChatGPT-style interface, local conversation history, configurable OpenAI-compatible providers, attachments, voice input, and optional web search/browsing support for questions that need live context.
+OpenChat is a Flutter chat client with a ChatGPT-style interface, local conversation history, configurable AI providers (OpenAI-compatible and Anthropic-compatible), attachments, voice input, and optional web search/browsing support for questions that need live context.
 
 ## Screenshots
 
@@ -13,7 +13,7 @@ OpenChat is a Flutter chat client with a ChatGPT-style interface, local conversa
 ## Current feature set
 
 - Responsive chat UI for mobile, desktop, and web.
-- Provider setup flow with presets for OpenAI, OpenRouter, Groq, Together AI, DeepSeek, Ollama Cloud, and custom OpenAI-compatible endpoints.
+- Provider setup flow with presets for OpenAI, Anthropic, OpenCode Go, OpenRouter, Groq, Together AI, DeepSeek, Ollama Cloud, and custom OpenAI-compatible or Anthropic-compatible endpoints. OpenCode Go automatically routes MiniMax models to the Anthropic-compatible endpoint and all other models to the OpenAI-compatible endpoint — no separate provider config needed.
 - Model fetching plus cached model lists for previously configured providers.
 - Streaming assistant responses with markdown and code block rendering, with auto-scroll to follow new content.
 - Attachment support for camera, photos, and files.
@@ -83,6 +83,8 @@ OPENCHAT_PROXY_PORT=8082 dart run tool/web_cors_proxy.dart
 The default allowlist already includes:
 
 - `api.openai.com`
+- `api.anthropic.com`
+- `opencode.ai`
 - `openrouter.ai`
 - `api.groq.com`
 - `api.together.xyz`

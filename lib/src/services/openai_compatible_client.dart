@@ -12,9 +12,7 @@ import 'attachment_store.dart';
 class ChatCompletionChunk {
   const ChatCompletionChunk({required this.delta, required this.isDone});
 
-  const ChatCompletionChunk.done()
-      : delta = '',
-        isDone = true;
+  const ChatCompletionChunk.done() : delta = '', isDone = true;
 
   final String delta;
   final bool isDone;
@@ -26,11 +24,11 @@ class OpenAiCompatibleClient {
     bool? isWebOverride,
     String webProxyUrl = _defaultWebProxyUrl,
     AttachmentStore? attachmentStore,
-  })  : _httpClient = httpClient ?? http.Client(),
-        _ownsClient = httpClient == null,
-        _isWeb = isWebOverride ?? kIsWeb,
-        _webProxyUrl = webProxyUrl,
-        _attachmentStore = attachmentStore;
+  }) : _httpClient = httpClient ?? http.Client(),
+       _ownsClient = httpClient == null,
+       _isWeb = isWebOverride ?? kIsWeb,
+       _webProxyUrl = webProxyUrl,
+       _attachmentStore = attachmentStore;
 
   http.Client _httpClient;
   final bool _ownsClient;
@@ -47,23 +45,29 @@ class OpenAiCompatibleClient {
       throw StateError('Provider settings are incomplete.');
     }
 
+    if (config.usesAnthropicApi ||
+        (config.usesOpenCodeGoApi && _openCodeGoUsesAnthropic(config.model))) {
+      yield* _streamAnthropicCompletion(config: config, messages: messages);
+      return;
+    }
+
     final String corsProxyUrl = _resolvedCorsProxyUrl();
     final bool useBufferedOllamaWebResponse = _isWeb && config.usesOllamaApi;
     final Uri uri = config.usesOllamaApi
         ? _ollamaChatUri(config, corsProxyUrl: corsProxyUrl)
-        : _appendedUri(
-            config.normalizedBaseUrl,
-            <String>['chat', 'completions'],
-            corsProxyUrl: corsProxyUrl,
-          );
+        : _appendedUri(config.normalizedBaseUrl, <String>[
+            'chat',
+            'completions',
+          ], corsProxyUrl: corsProxyUrl);
     final Map<String, dynamic> payload = await _buildPayload(
       config: config,
       messages: messages,
     );
 
     if (!config.streamResponses || useBufferedOllamaWebResponse) {
-      final Map<String, dynamic> requestBody =
-          Map<String, dynamic>.from(payload)..['stream'] = false;
+      final Map<String, dynamic> requestBody = Map<String, dynamic>.from(
+        payload,
+      )..['stream'] = false;
 
       final http.Response response = await _httpClient.post(
         uri,
@@ -108,9 +112,10 @@ class OpenAiCompatibleClient {
     }
 
     if (config.usesOllamaApi) {
-      await for (final String line in response.stream
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())) {
+      await for (final String line
+          in response.stream
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())) {
         final String trimmed = line.trim();
         if (trimmed.isEmpty) {
           continue;
@@ -132,9 +137,10 @@ class OpenAiCompatibleClient {
         }
       }
     } else {
-      await for (final String line in response.stream
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())) {
+      await for (final String line
+          in response.stream
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())) {
         final String trimmed = line.trim();
         if (trimmed.isEmpty || !trimmed.startsWith('data:')) {
           continue;
@@ -171,14 +177,46 @@ class OpenAiCompatibleClient {
       throw StateError('Add an API key before fetching models.');
     }
 
+    if (config.usesOpenCodeGoApi) {
+      // Return the known OpenCode Go model list. The endpoint does not expose
+      // a /models list, so we hard-code the four available models.
+      return const <String>[
+        'glm-5',
+        'kimi-k2.5',
+        'minimax-m2.5',
+        'minimax-m2.7',
+      ];
+    }
+
+    if (config.usesAnthropicApi) {
+      // Anthropic /v1/models requires a valid API key and returns Claude models.
+      // For Anthropic-compatible providers that don't expose /v1/models we fall
+      // back gracefully and return an empty list so the UI can allow manual entry.
+      try {
+        final Uri modelsUri = _appendedUri(baseUrl, <String>[
+          'models',
+        ], corsProxyUrl: corsProxyUrl);
+        final http.Response response = await _httpClient.get(
+          modelsUri,
+          headers: _anthropicHeaders(config),
+        );
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          final Object? decoded = jsonDecode(response.body);
+          final List<String> models = _extractModelIds(decoded);
+          if (models.isNotEmpty) {
+            return models;
+          }
+        }
+      } catch (_) {}
+      return const <String>[];
+    }
+
     Exception? primaryError;
     if (!config.usesOllamaApi) {
       try {
-        final Uri modelsUri = _appendedUri(
-          baseUrl,
-          <String>['models'],
-          corsProxyUrl: corsProxyUrl,
-        );
+        final Uri modelsUri = _appendedUri(baseUrl, <String>[
+          'models',
+        ], corsProxyUrl: corsProxyUrl);
         final http.Response response = await _httpClient.get(
           modelsUri,
           headers: _headers(config),
@@ -200,10 +238,7 @@ class OpenAiCompatibleClient {
     }
 
     try {
-      final Uri ollamaUri = _ollamaTagsUri(
-        baseUrl,
-        corsProxyUrl: corsProxyUrl,
-      );
+      final Uri ollamaUri = _ollamaTagsUri(baseUrl, corsProxyUrl: corsProxyUrl);
       final http.Response response = await _httpClient.get(
         ollamaUri,
         headers: _headers(config),
@@ -240,14 +275,6 @@ class OpenAiCompatibleClient {
     }
     try {
       final String corsProxyUrl = _resolvedCorsProxyUrl();
-      final Uri uri = config.usesOllamaApi
-          ? _ollamaChatUri(config, corsProxyUrl: corsProxyUrl)
-          : _appendedUri(
-              config.normalizedBaseUrl,
-              <String>['chat', 'completions'],
-              corsProxyUrl: corsProxyUrl,
-            );
-
       final String userSnippet = userMessage.length > 300
           ? '${userMessage.substring(0, 300)}…'
           : userMessage;
@@ -257,28 +284,52 @@ class OpenAiCompatibleClient {
       const String prompt =
           'In 6 words or fewer, write a title for this conversation. '
           'Output only the title text — no quotes, no trailing punctuation.';
+      final List<Map<String, dynamic>> msgs = <Map<String, dynamic>>[
+        <String, dynamic>{
+          'role': 'user',
+          'content':
+              '$prompt\n\nUser: $userSnippet\nAssistant: $assistantSnippet',
+        },
+      ];
 
-      final Map<String, dynamic> payload = <String, dynamic>{
-        'model': config.model.trim(),
-        'temperature': 0.3,
-        'stream': false,
-        'max_tokens': 20,
-        'messages': <Map<String, dynamic>>[
-          <String, dynamic>{
-            'role': 'user',
-            'content':
-                '$prompt\n\nUser: $userSnippet\nAssistant: $assistantSnippet',
-          },
-        ],
-      };
-
-      final http.Response response = await _httpClient
-          .post(
-            uri,
-            headers: _headers(config),
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 15));
+      final http.Response response;
+      if (_usesAnthropicStyle(config)) {
+        final Uri uri = _anthropicMessagesUri(
+          config,
+          corsProxyUrl: corsProxyUrl,
+        );
+        final Map<String, dynamic> payload = <String, dynamic>{
+          'model': config.model.trim(),
+          'temperature': 0.3,
+          'stream': false,
+          'max_tokens': 20,
+          'messages': msgs,
+        };
+        response = await _httpClient
+            .post(
+              uri,
+              headers: _anthropicHeaders(config),
+              body: jsonEncode(payload),
+            )
+            .timeout(const Duration(seconds: 15));
+      } else {
+        final Uri uri = config.usesOllamaApi
+            ? _ollamaChatUri(config, corsProxyUrl: corsProxyUrl)
+            : _appendedUri(config.normalizedBaseUrl, <String>[
+                'chat',
+                'completions',
+              ], corsProxyUrl: corsProxyUrl);
+        final Map<String, dynamic> payload = <String, dynamic>{
+          'model': config.model.trim(),
+          'temperature': 0.3,
+          'stream': false,
+          'max_tokens': 20,
+          'messages': msgs,
+        };
+        response = await _httpClient
+            .post(uri, headers: _headers(config), body: jsonEncode(payload))
+            .timeout(const Duration(seconds: 15));
+      }
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return null;
@@ -289,7 +340,9 @@ class OpenAiCompatibleClient {
         return null;
       }
 
-      final String content = config.usesOllamaApi
+      final String content = _usesAnthropicStyle(config)
+          ? _extractAnthropicMessageContent(decoded)
+          : config.usesOllamaApi
           ? _extractOllamaMessageContent(decoded)
           : _extractMessageContent(decoded);
 
@@ -316,29 +369,55 @@ class OpenAiCompatibleClient {
     }
     try {
       final String corsProxyUrl = _resolvedCorsProxyUrl();
-      final Uri uri = config.usesOllamaApi
-          ? _ollamaChatUri(config, corsProxyUrl: corsProxyUrl)
-          : _appendedUri(
-              config.normalizedBaseUrl,
-              <String>['chat', 'completions'],
-              corsProxyUrl: corsProxyUrl,
-            );
+      final http.Response response;
 
-      final Map<String, dynamic> payload = <String, dynamic>{
-        'model': config.model.trim(),
-        'temperature': temperature,
-        'stream': false,
-        'max_tokens': maxTokens,
-        'messages': messages,
-      };
-
-      final http.Response response = await _httpClient
-          .post(
-            uri,
-            headers: _headers(config),
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 20));
+      if (_usesAnthropicStyle(config)) {
+        final Uri uri = _anthropicMessagesUri(
+          config,
+          corsProxyUrl: corsProxyUrl,
+        );
+        // Anthropic puts system prompt at the top level, not in the messages array.
+        final List<Map<String, dynamic>> userMessages = messages
+            .where((Map<String, dynamic> m) => m['role'] != 'system')
+            .toList();
+        final String? systemPrompt = messages
+            .where((Map<String, dynamic> m) => m['role'] == 'system')
+            .map((Map<String, dynamic> m) => m['content'] as String? ?? '')
+            .firstOrNull;
+        final Map<String, dynamic> payload = <String, dynamic>{
+          'model': config.model.trim(),
+          'temperature': temperature,
+          'stream': false,
+          'max_tokens': maxTokens,
+          if (systemPrompt != null && systemPrompt.isNotEmpty)
+            'system': systemPrompt,
+          'messages': userMessages,
+        };
+        response = await _httpClient
+            .post(
+              uri,
+              headers: _anthropicHeaders(config),
+              body: jsonEncode(payload),
+            )
+            .timeout(const Duration(seconds: 20));
+      } else {
+        final Uri uri = config.usesOllamaApi
+            ? _ollamaChatUri(config, corsProxyUrl: corsProxyUrl)
+            : _appendedUri(config.normalizedBaseUrl, <String>[
+                'chat',
+                'completions',
+              ], corsProxyUrl: corsProxyUrl);
+        final Map<String, dynamic> payload = <String, dynamic>{
+          'model': config.model.trim(),
+          'temperature': temperature,
+          'stream': false,
+          'max_tokens': maxTokens,
+          'messages': messages,
+        };
+        response = await _httpClient
+            .post(uri, headers: _headers(config), body: jsonEncode(payload))
+            .timeout(const Duration(seconds: 20));
+      }
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return null;
@@ -349,7 +428,9 @@ class OpenAiCompatibleClient {
         return null;
       }
 
-      final String content = config.usesOllamaApi
+      final String content = _usesAnthropicStyle(config)
+          ? _extractAnthropicMessageContent(decoded)
+          : config.usesOllamaApi
           ? _extractOllamaMessageContent(decoded)
           : _extractMessageContent(decoded);
 
@@ -394,6 +475,157 @@ class OpenAiCompatibleClient {
     return headers;
   }
 
+  /// Returns true if this config+model combination should use the Anthropic API.
+  bool _usesAnthropicStyle(ProviderConfig config) {
+    return config.usesAnthropicApi ||
+        (config.usesOpenCodeGoApi && _openCodeGoUsesAnthropic(config.model));
+  }
+
+  /// MiniMax models on OpenCode Go use the Anthropic-compatible endpoint.
+  bool _openCodeGoUsesAnthropic(String model) {
+    return model.trim().toLowerCase().startsWith('minimax-');
+  }
+
+  Map<String, String> _anthropicHeaders(ProviderConfig config) {
+    final Map<String, String> headers = <String, String>{
+      'Content-Type': 'application/json',
+      'anthropic-version': '2023-06-01',
+    };
+    final String apiKey = config.apiKey.trim();
+    if (apiKey.isNotEmpty) {
+      headers['x-api-key'] = apiKey;
+    }
+    return headers;
+  }
+
+  Uri _anthropicMessagesUri(
+    ProviderConfig config, {
+    required String corsProxyUrl,
+  }) {
+    return _appendedUri(config.normalizedBaseUrl, <String>[
+      'messages',
+    ], corsProxyUrl: corsProxyUrl);
+  }
+
+  Future<Map<String, dynamic>> _buildAnthropicPayload({
+    required ProviderConfig config,
+    required List<ChatMessage> messages,
+  }) async {
+    // Collect the system prompt from config and any system-role messages.
+    final StringBuffer systemBuffer = StringBuffer();
+    if (config.systemPrompt.trim().isNotEmpty) {
+      systemBuffer.write(config.systemPrompt.trim());
+    }
+
+    final List<Map<String, dynamic>> payloadMessages = <Map<String, dynamic>>[];
+    for (final ChatMessage message in messages) {
+      if (message.role == ChatRole.system) {
+        if (systemBuffer.isNotEmpty) {
+          systemBuffer.writeln();
+        }
+        systemBuffer.write(message.text.trim());
+        continue;
+      }
+      // Anthropic only allows 'user' and 'assistant' roles.
+      payloadMessages.add(await _composeOpenAiMessage(message));
+    }
+
+    return <String, dynamic>{
+      'model': config.model.trim(),
+      'temperature': config.temperature,
+      'stream': config.streamResponses,
+      'max_tokens': 4096,
+      if (systemBuffer.isNotEmpty) 'system': systemBuffer.toString(),
+      'messages': payloadMessages,
+    };
+  }
+
+  Stream<ChatCompletionChunk> _streamAnthropicCompletion({
+    required ProviderConfig config,
+    required List<ChatMessage> messages,
+  }) async* {
+    final String corsProxyUrl = _resolvedCorsProxyUrl();
+    final Uri uri = _anthropicMessagesUri(config, corsProxyUrl: corsProxyUrl);
+    final Map<String, dynamic> payload = await _buildAnthropicPayload(
+      config: config,
+      messages: messages,
+    );
+
+    if (!config.streamResponses) {
+      final Map<String, dynamic> requestBody = Map<String, dynamic>.from(
+        payload,
+      )..['stream'] = false;
+      final http.Response response = await _httpClient.post(
+        uri,
+        headers: _anthropicHeaders(config),
+        body: jsonEncode(requestBody),
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception(
+          'Provider request failed (${response.statusCode}): ${response.body}',
+        );
+      }
+      final Object? decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        throw Exception('Invalid provider response.');
+      }
+      final String content = _extractAnthropicMessageContent(decoded);
+      if (content.isNotEmpty) {
+        yield ChatCompletionChunk(delta: content, isDone: false);
+      }
+      yield const ChatCompletionChunk.done();
+      return;
+    }
+
+    final Map<String, dynamic> requestBody = Map<String, dynamic>.from(payload)
+      ..['stream'] = true;
+    final http.Request request = http.Request('POST', uri)
+      ..headers.addAll(_anthropicHeaders(config))
+      ..body = jsonEncode(requestBody);
+
+    final http.StreamedResponse response = await _httpClient.send(request);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final String body = await response.stream.bytesToString();
+      throw Exception(
+        'Provider request failed (${response.statusCode}): $body',
+      );
+    }
+
+    // Anthropic SSE: lines alternate between "event: <type>" and "data: <json>".
+    // We only need "data:" lines for content_block_delta and message_stop.
+    await for (final String line
+        in response.stream
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())) {
+      final String trimmed = line.trim();
+      if (trimmed.isEmpty || !trimmed.startsWith('data:')) {
+        continue;
+      }
+
+      final String rawData = trimmed.substring(5).trim();
+      final Object? decoded = jsonDecode(rawData);
+      if (decoded is! Map<String, dynamic>) {
+        continue;
+      }
+
+      final String? type = decoded['type'] as String?;
+      if (type == 'content_block_delta') {
+        final Object? delta = decoded['delta'];
+        if (delta is Map<String, dynamic>) {
+          final Object? text = delta['text'];
+          if (text is String && text.isNotEmpty) {
+            yield ChatCompletionChunk(delta: text, isDone: false);
+          }
+        }
+      } else if (type == 'message_stop') {
+        yield const ChatCompletionChunk.done();
+        return;
+      }
+    }
+
+    yield const ChatCompletionChunk.done();
+  }
+
   Uri _appendedUri(
     String baseUrl,
     List<String> pathSegments, {
@@ -411,11 +643,10 @@ class OpenAiCompatibleClient {
   }
 
   Uri _ollamaChatUri(ProviderConfig config, {required String corsProxyUrl}) {
-    return _appendedUri(
-      config.normalizedBaseUrl,
-      <String>['api', 'chat'],
-      corsProxyUrl: corsProxyUrl,
-    );
+    return _appendedUri(config.normalizedBaseUrl, <String>[
+      'api',
+      'chat',
+    ], corsProxyUrl: corsProxyUrl);
   }
 
   Future<Map<String, dynamic>> _buildPayload({
@@ -455,7 +686,8 @@ class OpenAiCompatibleClient {
   }
 
   Future<Map<String, dynamic>> _composeOpenAiMessage(
-      ChatMessage message) async {
+    ChatMessage message,
+  ) async {
     if (message.attachments.isEmpty) {
       return <String, dynamic>{
         'role': message.role.name,
@@ -507,14 +739,12 @@ class OpenAiCompatibleClient {
       content.add(const <String, dynamic>{'type': 'text', 'text': ''});
     }
 
-    return <String, dynamic>{
-      'role': message.role.name,
-      'content': content,
-    };
+    return <String, dynamic>{'role': message.role.name, 'content': content};
   }
 
   Future<Map<String, dynamic>> _composeOllamaMessage(
-      ChatMessage message) async {
+    ChatMessage message,
+  ) async {
     final StringBuffer buffer = StringBuffer(message.text.trim());
     final List<String> images = <String>[];
 
@@ -584,6 +814,26 @@ class OpenAiCompatibleClient {
         ? '${trimmed.substring(0, _maxAttachmentTextCharacters)}\n\n[Attachment truncated after $_maxAttachmentTextCharacters characters.]'
         : trimmed;
     return 'Attached document: ${attachment.name}\n$safeText';
+  }
+
+  String _extractAnthropicMessageContent(Map<String, dynamic> json) {
+    final Object? rawContent = json['content'];
+    if (rawContent is List<dynamic>) {
+      final StringBuffer buffer = StringBuffer();
+      for (final dynamic item in rawContent) {
+        if (item is Map<String, dynamic> && item['type'] == 'text') {
+          final Object? text = item['text'];
+          if (text is String && text.isNotEmpty) {
+            if (buffer.isNotEmpty) {
+              buffer.writeln();
+            }
+            buffer.write(text);
+          }
+        }
+      }
+      return buffer.toString();
+    }
+    return '';
   }
 
   String _extractDeltaContent(Map<String, dynamic> json) {
@@ -687,20 +937,21 @@ class OpenAiCompatibleClient {
       return const <String>[];
     }
 
-    final List<String> models = rawData
-        .map((dynamic item) {
-          if (item is Map<String, dynamic>) {
-            final Object? id = item['id'];
-            if (id is String && id.trim().isNotEmpty) {
-              return id.trim();
-            }
-          }
-          return '';
-        })
-        .where((String model) => model.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    final List<String> models =
+        rawData
+            .map((dynamic item) {
+              if (item is Map<String, dynamic>) {
+                final Object? id = item['id'];
+                if (id is String && id.trim().isNotEmpty) {
+                  return id.trim();
+                }
+              }
+              return '';
+            })
+            .where((String model) => model.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
     return models;
   }
 
@@ -714,27 +965,29 @@ class OpenAiCompatibleClient {
       return const <String>[];
     }
 
-    final List<String> models = rawModels
-        .map((dynamic item) {
-          if (item is Map<String, dynamic>) {
-            final Object? name = item['name'];
-            if (name is String && name.trim().isNotEmpty) {
-              return name.trim();
-            }
-          }
-          return '';
-        })
-        .where((String model) => model.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    final List<String> models =
+        rawModels
+            .map((dynamic item) {
+              if (item is Map<String, dynamic>) {
+                final Object? name = item['name'];
+                if (name is String && name.trim().isNotEmpty) {
+                  return name.trim();
+                }
+              }
+              return '';
+            })
+            .where((String model) => model.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
     return models;
   }
 
   Uri _ollamaTagsUri(String normalizedBaseUrl, {String corsProxyUrl = ''}) {
     final Uri uri = Uri.parse(normalizedBaseUrl);
-    final List<String> pathSegments =
-        uri.pathSegments.where((String segment) => segment.isNotEmpty).toList();
+    final List<String> pathSegments = uri.pathSegments
+        .where((String segment) => segment.isNotEmpty)
+        .toList();
     if (pathSegments.isNotEmpty && pathSegments.last == 'v1') {
       pathSegments.removeLast();
     }

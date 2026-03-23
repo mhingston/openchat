@@ -20,7 +20,7 @@ class ProviderPreset {
   final ProviderApiStyle apiStyle;
 }
 
-enum ProviderApiStyle { openAi, ollama }
+enum ProviderApiStyle { openAi, ollama, anthropic, openCodeGo }
 
 const List<ProviderPreset> providerPresets = <ProviderPreset>[
   ProviderPreset(
@@ -32,6 +32,38 @@ const List<ProviderPreset> providerPresets = <ProviderPreset>[
     helperText: 'Use any OpenAI-compatible endpoint that exposes /v1.',
     apiKeyRequired: false,
     apiStyle: ProviderApiStyle.openAi,
+  ),
+  ProviderPreset(
+    id: 'custom-anthropic',
+    name: 'Custom Anthropic-compatible',
+    defaultLabel: 'Custom Anthropic provider',
+    defaultBaseUrl: '',
+    modelHint: 'claude-3-5-sonnet-20241022',
+    helperText:
+        'Use any Anthropic-compatible endpoint that exposes /v1/messages.',
+    apiKeyRequired: false,
+    apiStyle: ProviderApiStyle.anthropic,
+  ),
+  ProviderPreset(
+    id: 'anthropic',
+    name: 'Anthropic',
+    defaultLabel: 'Anthropic',
+    defaultBaseUrl: 'https://api.anthropic.com/v1',
+    modelHint: 'claude-3-5-sonnet-20241022',
+    helperText: 'Official Anthropic API (Claude models).',
+    apiKeyRequired: true,
+    apiStyle: ProviderApiStyle.anthropic,
+  ),
+  ProviderPreset(
+    id: 'opencode-go',
+    name: 'OpenCode Go',
+    defaultLabel: 'OpenCode Go',
+    defaultBaseUrl: 'https://opencode.ai/zen/go/v1',
+    modelHint: 'glm-5',
+    helperText:
+        'OpenCode Go subscription — all models. MiniMax models are routed automatically.',
+    apiKeyRequired: true,
+    apiStyle: ProviderApiStyle.openCodeGo,
   ),
   ProviderPreset(
     id: 'openai',
@@ -189,6 +221,28 @@ class ProviderConfig {
     return withoutEndpoint.replaceAll(RegExp(r'/+$'), '');
   }
 
+  static String normalizeAnthropicBaseUrl(String value) {
+    final String trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+
+    final String withoutEndpoint = trimmed.replaceFirst(
+      RegExp(r'/messages/?$'),
+      '',
+    );
+    final String withoutTrailingSlash = withoutEndpoint.replaceAll(
+      RegExp(r'/+$'),
+      '',
+    );
+
+    if (withoutTrailingSlash.endsWith('/v1')) {
+      return withoutTrailingSlash;
+    }
+
+    return '$withoutTrailingSlash/v1';
+  }
+
   static String normalizeBaseUrl(
     String value, {
     ProviderApiStyle apiStyle = ProviderApiStyle.openAi,
@@ -196,7 +250,10 @@ class ProviderConfig {
     switch (apiStyle) {
       case ProviderApiStyle.ollama:
         return normalizeOllamaBaseUrl(value);
+      case ProviderApiStyle.anthropic:
+        return normalizeAnthropicBaseUrl(value);
       case ProviderApiStyle.openAi:
+      case ProviderApiStyle.openCodeGo:
         return normalizeOpenAiBaseUrl(value);
     }
   }
@@ -208,6 +265,8 @@ class ProviderConfig {
 
   bool get requiresApiKey => preset.apiKeyRequired;
   bool get usesOllamaApi => preset.apiStyle == ProviderApiStyle.ollama;
+  bool get usesAnthropicApi => preset.apiStyle == ProviderApiStyle.anthropic;
+  bool get usesOpenCodeGoApi => preset.apiStyle == ProviderApiStyle.openCodeGo;
 
   bool get isReadyForConnectionTest {
     return normalizedBaseUrl.isNotEmpty &&
