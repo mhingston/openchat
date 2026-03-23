@@ -9,9 +9,11 @@ import 'package:openchat/src/models/provider_config.dart';
 import 'package:openchat/src/services/app_settings_store.dart';
 import 'package:openchat/src/services/openai_compatible_client.dart';
 import 'package:openchat/src/services/provider_config_store.dart';
+import 'package:openchat/src/services/tts_service.dart';
 import 'package:openchat/src/theme/app_theme.dart';
 import 'package:openchat/src/widgets/settings_sheet.dart';
 import 'package:provider/provider.dart';
+import 'package:provider/single_child_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -36,8 +38,11 @@ void main() {
     );
 
     await tester.pumpWidget(
-      ChangeNotifierProvider<SettingsController>.value(
-        value: controller,
+      MultiProvider(
+        providers: <SingleChildWidget>[
+          ChangeNotifierProvider<SettingsController>.value(value: controller),
+          ChangeNotifierProvider<TtsService>(create: (_) => TtsService()),
+        ],
         child: MaterialApp(
           theme: AppTheme.lightTheme(),
           home: Scaffold(
@@ -91,8 +96,11 @@ void main() {
     bool saved = false;
 
     await tester.pumpWidget(
-      ChangeNotifierProvider<SettingsController>.value(
-        value: controller,
+      MultiProvider(
+        providers: <SingleChildWidget>[
+          ChangeNotifierProvider<SettingsController>.value(value: controller),
+          ChangeNotifierProvider<TtsService>(create: (_) => TtsService()),
+        ],
         child: MaterialApp(
           theme: AppTheme.lightTheme(),
           home: Scaffold(
@@ -160,8 +168,11 @@ void main() {
     );
 
     await tester.pumpWidget(
-      ChangeNotifierProvider<SettingsController>.value(
-        value: controller,
+      MultiProvider(
+        providers: <SingleChildWidget>[
+          ChangeNotifierProvider<SettingsController>.value(value: controller),
+          ChangeNotifierProvider<TtsService>(create: (_) => TtsService()),
+        ],
         child: MaterialApp(
           theme: AppTheme.lightTheme(),
           home: Scaffold(
