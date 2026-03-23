@@ -44,7 +44,7 @@ class TtsService extends ChangeNotifier {
     try {
       final dynamic rawVoices = await _tts.getVoices;
       if (rawVoices is List) {
-        _availableVoices = rawVoices
+        final List<Map<String, String>> allVoices = rawVoices
             .whereType<Map<dynamic, dynamic>>()
             .map(
               (Map<dynamic, dynamic> v) => <String, String>{
@@ -54,17 +54,50 @@ class TtsService extends ChangeNotifier {
             )
             .where((Map<String, String> v) => v['name']!.isNotEmpty)
             .toList();
+
+        // Show only voices that match the device locale's language code.
+        // Fall back to all voices if none match (e.g. uncommon language).
+        final String deviceLanguage =
+            PlatformDispatcher.instance.locale.languageCode.toLowerCase();
+        final List<Map<String, String>> localeVoices = allVoices
+            .where(
+              (Map<String, String> v) =>
+                  (v['locale'] ?? '').toLowerCase().startsWith(deviceLanguage),
+            )
+            .toList();
+        _availableVoices =
+            localeVoices.isNotEmpty ? localeVoices : allVoices;
       }
 
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       final String? savedName = prefs.getString(_voiceNameKey);
       final String? savedLocale = prefs.getString(_voiceLocaleKey);
-      if (savedName != null && savedName.isNotEmpty) {
+
+      final bool savedVoiceAvailable = savedName != null &&
+          savedName.isNotEmpty &&
+          _availableVoices.any(
+            (Map<String, String> v) => v['name'] == savedName,
+          );
+
+      if (savedVoiceAvailable) {
         _selectedVoiceName = savedName;
         await _tts.setVoice(<String, String>{
           'name': savedName,
           'locale': savedLocale ?? '',
         });
+      } else if (_availableVoices.isNotEmpty) {
+        // No saved voice (or saved voice no longer available) — pick a
+        // sensible default: prefer an exact locale match, then first in list.
+        final String deviceLocale =
+            PlatformDispatcher.instance.locale.toLanguageTag();
+        final Map<String, String> defaultVoice = _availableVoices.firstWhere(
+          (Map<String, String> v) => v['locale'] == deviceLocale,
+          orElse: () => _availableVoices.first,
+        );
+        _selectedVoiceName = defaultVoice['name'];
+        await _tts.setVoice(defaultVoice);
+        await prefs.setString(_voiceNameKey, defaultVoice['name']!);
+        await prefs.setString(_voiceLocaleKey, defaultVoice['locale']!);
       }
 
       notifyListeners();
