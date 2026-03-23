@@ -15,6 +15,7 @@ import 'package:openchat/src/services/chat_store.dart';
 import 'package:openchat/src/services/openai_compatible_client.dart';
 import 'package:openchat/src/services/prompt_template_store.dart';
 import 'package:openchat/src/services/provider_config_store.dart';
+import 'package:openchat/src/services/tts_service.dart';
 import 'package:openchat/src/services/voice_input_service.dart';
 import 'package:openchat/src/theme/app_theme.dart';
 import 'package:openchat/src/utils/keyboard_shortcuts.dart';
@@ -80,6 +81,7 @@ void main() {
               const VoiceInputState(status: VoiceInputStatus.idle),
             ),
           ),
+          ChangeNotifierProvider<TtsService>(create: (_) => TtsService()),
         ],
         child: MaterialApp(
           theme: AppTheme.lightTheme(),
@@ -164,6 +166,7 @@ void main() {
               const VoiceInputState(status: VoiceInputStatus.idle),
             ),
           ),
+          ChangeNotifierProvider<TtsService>(create: (_) => TtsService()),
         ],
         child: MaterialApp(
           theme: AppTheme.lightTheme(),
@@ -263,6 +266,7 @@ void main() {
               const VoiceInputState(status: VoiceInputStatus.idle),
             ),
           ),
+          ChangeNotifierProvider<TtsService>(create: (_) => TtsService()),
         ],
         child: MaterialApp(
           theme: AppTheme.lightTheme(),
@@ -353,6 +357,7 @@ void main() {
               const VoiceInputState(status: VoiceInputStatus.idle),
             ),
           ),
+          ChangeNotifierProvider<TtsService>(create: (_) => TtsService()),
         ],
         child: MaterialApp(
           theme: AppTheme.lightTheme(),
