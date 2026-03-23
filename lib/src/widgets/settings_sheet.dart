@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../controllers/settings_controller.dart';
 import '../models/provider_config.dart';
+import '../services/tts_service.dart';
 import '../theme/app_theme.dart';
 import 'chat_markdown.dart';
 
@@ -112,6 +113,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
   Widget build(BuildContext context) {
     final SettingsController settingsController =
         context.watch<SettingsController>();
+    final TtsService ttsService = context.watch<TtsService>();
     final ProviderConfig draftConfig = _draftConfig();
     final ProviderPreset preset = providerPresetById(_selectedPresetId);
     final List<String> availableModels = settingsController.availableModels;
@@ -471,6 +473,42 @@ class _SettingsSheetState extends State<SettingsSheet> {
                       });
                     },
                   ),
+                  if (ttsService.availableVoices.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: ttsService.availableVoices.any(
+                        (Map<String, String> v) =>
+                            v['name'] == ttsService.selectedVoiceName,
+                      )
+                          ? ttsService.selectedVoiceName
+                          : null,
+                      decoration:
+                          const InputDecoration(labelText: 'TTS voice'),
+                      items: ttsService.availableVoices
+                          .map(
+                            (Map<String, String> voice) =>
+                                DropdownMenuItem<String>(
+                              value: voice['name'],
+                              child: Text(
+                                '${voice['name']} (${voice['locale']})',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (String? value) {
+                        if (value == null) return;
+                        final Map<String, String> voice =
+                            ttsService.availableVoices.firstWhere(
+                          (Map<String, String> v) => v['name'] == value,
+                        );
+                        ttsService.setVoice(
+                          value,
+                          voice['locale'] ?? '',
+                        );
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   const SizedBox(height: 12),
                   ExpansionTile(
