@@ -403,7 +403,8 @@ class _SourcesFooter extends StatelessWidget {
                       ),
                 ),
                 Expanded(
-                  child: GestureDetector(
+                  child: SelectableText(
+                    entry.value,
                     onTap: () {
                       final Uri? uri = Uri.tryParse(entry.value);
                       if (uri != null) {
@@ -412,15 +413,12 @@ class _SourcesFooter extends StatelessWidget {
                         );
                       }
                     },
-                    child: SelectableText(
-                      entry.value,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.primary,
-                            decoration: TextDecoration.underline,
-                            decorationColor:
-                                Theme.of(context).colorScheme.primary,
-                          ),
-                    ),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          decoration: TextDecoration.underline,
+                          decorationColor:
+                              Theme.of(context).colorScheme.primary,
+                        ),
                   ),
                 ),
               ],
