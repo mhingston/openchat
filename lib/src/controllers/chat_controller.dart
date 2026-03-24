@@ -1183,6 +1183,15 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
 
     final String initialQuery = _buildSearchQuery(requestMessages);
 
+    final Uri? directUrl = _webSearchService.extractDirectUrl(initialQuery);
+    if (directUrl != null) {
+      return _handleDirectUrl(
+        requestMessages: requestMessages,
+        directUrl: directUrl,
+        originalQuery: initialQuery,
+      );
+    }
+
     if (_deepResearchMaxRounds <= 0) {
       // Legacy single-pass behaviour.
       return _singlePassWebSearch(
@@ -1195,6 +1204,51 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       requestMessages: requestMessages,
       initialQuery: initialQuery,
     );
+  }
+
+  Future<(List<ChatMessage>, List<String>)> _handleDirectUrl({
+    required List<ChatMessage> requestMessages,
+    required Uri directUrl,
+    required String originalQuery,
+  }) async {
+    _searchStatus = 'Fetching page…';
+    notifyListeners();
+
+    final WebPageExcerpt? excerpt = await _webPageBrowseService.fetchUrl(directUrl);
+
+    _searchStatus = null;
+    notifyListeners();
+
+    if (excerpt == null) {
+      return (requestMessages, const <String>[]);
+    }
+
+    final List<WebSearchResult> results = <WebSearchResult>[
+      WebSearchResult(
+        title: excerpt.title,
+        url: excerpt.url,
+        snippet: excerpt.excerpt,
+        source: 'Direct',
+      ),
+    ];
+    final List<WebPageExcerpt> excerpts = <WebPageExcerpt>[excerpt];
+    final List<String> sources = <String>[excerpt.url];
+
+    final ChatMessage contextMessage = ChatMessage(
+      id: _newId('message'),
+      role: ChatRole.system,
+      text: _webPageBrowseService.formatBrowseContext(
+        originalQuery,
+        results,
+        excerpts,
+      ),
+      createdAt: DateTime.now(),
+      attachments: const <ChatAttachment>[],
+      isStreaming: false,
+      isError: false,
+    );
+
+    return (<ChatMessage>[contextMessage, ...requestMessages], sources);
   }
 
   Future<(List<ChatMessage>, List<String>)> _singlePassWebSearch({

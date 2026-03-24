@@ -72,6 +72,28 @@ class WebSearchService {
     return combined;
   }
 
+  static final RegExp _urlPattern = RegExp(
+    r'https?://[^\s<>"{}|\\^`\[\]]+',
+    caseSensitive: false,
+  );
+
+  Uri? extractDirectUrl(String input) {
+    final String trimmed = input.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    final Match? match = _urlPattern.firstMatch(trimmed);
+    if (match == null) {
+      return null;
+    }
+    final String url = match.group(0)!;
+    final Uri? parsed = Uri.tryParse(url);
+    if (parsed == null || !parsed.hasScheme || parsed.host.isEmpty) {
+      return null;
+    }
+    return parsed;
+  }
+
   Future<List<WebSearchResult>> _searchTavily(
     String query, {
     required int maxResults,

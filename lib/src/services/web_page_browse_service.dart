@@ -352,6 +352,61 @@ class WebPageBrowseService {
     return buffer.toString().trim();
   }
 
+  Future<WebPageExcerpt?> fetchUrl(
+    Uri url, {
+    String? query,
+    int maxExcerptLength = 900,
+  }) async {
+    final String urlString = url.toString();
+    final WebSearchResult syntheticResult = WebSearchResult(
+      title: url.host,
+      url: urlString,
+      snippet: '',
+      source: 'Direct',
+    );
+
+    if (firecrawlApiKey != null && firecrawlApiKey!.isNotEmpty) {
+      final String? firecrawlMarkdown =
+          await _fetchFirecrawlContent(url);
+      if (firecrawlMarkdown != null) {
+        final WebPageExcerpt? excerpt = _extractExcerptFromMarkdown(
+          syntheticResult,
+          firecrawlMarkdown,
+          pageUrl: urlString,
+          maxExcerptLength: maxExcerptLength,
+        );
+        if (excerpt != null) {
+          return excerpt;
+        }
+      }
+    }
+
+    final String? jinaContent = await _fetchJinaContent(url);
+    if (jinaContent != null) {
+      final WebPageExcerpt? excerpt = _extractExcerptFromMarkdown(
+        syntheticResult,
+        jinaContent,
+        pageUrl: urlString,
+        maxExcerptLength: maxExcerptLength,
+      );
+      if (excerpt != null) {
+        return excerpt;
+      }
+    }
+
+    final String? html = await _fetchHtml(url);
+    if (html == null) {
+      return null;
+    }
+
+    return _extractExcerpt(
+      syntheticResult,
+      html,
+      pageUrl: urlString,
+      maxExcerptLength: maxExcerptLength,
+    );
+  }
+
   void dispose() {
     if (_ownsClient) {
       _httpClient.close();
