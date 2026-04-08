@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/chat_thread.dart';
 import '../theme/app_theme.dart';
+import '../utils/localized_timestamp_formatter.dart';
 
 class ConversationList extends StatelessWidget {
   const ConversationList({
@@ -72,9 +73,14 @@ class ConversationList extends StatelessWidget {
         );
       },
     );
-    if (chosenFolderId == null) return;
-    // Empty string means "remove from folder"
-    await onMoveToFolder(thread.id, chosenFolderId.isEmpty ? null : chosenFolderId);
+    if (chosenFolderId == null) {
+      return;
+    }
+
+    await onMoveToFolder(
+      thread.id,
+      chosenFolderId.isEmpty ? null : chosenFolderId,
+    );
   }
 
   @override
@@ -94,6 +100,15 @@ class ConversationList extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         final ChatThread thread = threads[index];
         final bool isSelected = thread.id == selectedThreadId;
+        final String updatedLabel =
+            LocalizedTimestampFormatter.formatCompactTimestamp(
+          context,
+          thread.updatedAt,
+        );
+        final TextStyle? timestampStyle = Theme.of(context)
+            .textTheme
+            .labelSmall
+            ?.copyWith(color: context.openChatPalette.mutedText);
 
         return Dismissible(
           key: ValueKey<String>(thread.id),
@@ -104,8 +119,9 @@ class ConversationList extends StatelessWidget {
                   context: context,
                   builder: (BuildContext ctx) => AlertDialog(
                     title: const Text('Delete conversation?'),
-                    content:
-                        Text('Delete "${thread.title}"? This cannot be undone.'),
+                    content: Text(
+                      'Delete "${thread.title}"? This cannot be undone.',
+                    ),
                     actions: <Widget>[
                       TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
@@ -138,185 +154,192 @@ class ConversationList extends StatelessWidget {
             ),
           ),
           child: Material(
-          color: isSelected
-              ? context.openChatPalette.surfaceRaised
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
-          child: ListTile(
-            onTap: () => onSelectThread(thread.id),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-              side: BorderSide(
-                color: isSelected
-                    ? context.openChatPalette.accent
-                    : context.openChatPalette.border,
+            color: isSelected
+                ? context.openChatPalette.surfaceRaised
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+            child: ListTile(
+              onTap: () => onSelectThread(thread.id),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(
+                  color: isSelected
+                      ? context.openChatPalette.accent
+                      : context.openChatPalette.border,
+                ),
               ),
-            ),
-            title: Row(
-              children: <Widget>[
-                if (thread.isPinned) ...<Widget>[
-                  Icon(
-                    Icons.push_pin_rounded,
-                    size: 16,
-                    color: context.openChatPalette.accent,
+              title: Row(
+                children: <Widget>[
+                  if (thread.isPinned) ...<Widget>[
+                    Icon(
+                      Icons.push_pin_rounded,
+                      size: 16,
+                      color: context.openChatPalette.accent,
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  Expanded(
+                    child: Text(
+                      thread.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                  const SizedBox(width: 6),
-                ],
-                Expanded(
-                  child: Text(
-                    thread.title,
+                  const SizedBox(width: 8),
+                  Text(
+                    updatedLabel,
                     maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    style: timestampStyle,
+                  ),
+                ],
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    thread.previewText,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: context.openChatPalette.mutedText),
                   ),
-                ),
-              ],
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  thread.previewText,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: context.openChatPalette.mutedText),
-                ),
-                if (thread.promptTemplateName != null) ...<Widget>[
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(
-                        Icons.auto_awesome_outlined,
-                        size: 11,
-                        color: context.openChatPalette.mutedText,
-                      ),
-                      const SizedBox(width: 3),
-                      Flexible(
-                        child: Text(
-                          thread.promptTemplateName!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: context.openChatPalette.mutedText,
+                  if (thread.promptTemplateName != null) ...<Widget>[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Icon(
+                          Icons.auto_awesome_outlined,
+                          size: 11,
+                          color: context.openChatPalette.mutedText,
+                        ),
+                        const SizedBox(width: 3),
+                        Flexible(
+                          child: Text(
+                            thread.promptTemplateName!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: context.openChatPalette.mutedText,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
-                if (thread.folderName != null) ...<Widget>[
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(
-                        Icons.folder_outlined,
-                        size: 11,
-                        color: context.openChatPalette.accent,
-                      ),
-                      const SizedBox(width: 3),
-                      Flexible(
-                        child: Text(
-                          thread.folderName!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: context.openChatPalette.accent,
+                      ],
+                    ),
+                  ],
+                  if (thread.folderName != null) ...<Widget>[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Icon(
+                          Icons.folder_outlined,
+                          size: 11,
+                          color: context.openChatPalette.accent,
+                        ),
+                        const SizedBox(width: 3),
+                        Flexible(
+                          child: Text(
+                            thread.folderName!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: context.openChatPalette.accent,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ],
-              ],
-            ),
-            trailing: PopupMenuButton<_ConversationAction>(
-              tooltip: 'Conversation actions',
-              icon: const Icon(Icons.more_horiz),
-              onSelected: (_ConversationAction action) {
-                switch (action) {
-                  case _ConversationAction.rename:
-                    onRenameThread(thread.id);
-                    return;
-                  case _ConversationAction.pin:
-                    onTogglePinnedThread(thread.id);
-                    return;
-                  case _ConversationAction.duplicate:
-                    onDuplicateThread(thread.id);
-                    return;
-                  case _ConversationAction.delete:
-                    onDeleteThread(thread.id);
-                    return;
-                  case _ConversationAction.moveToFolder:
-                    _showMoveToFolderDialog(context, thread);
-                    return;
-                }
-              },
-              itemBuilder: (BuildContext context) =>
-                  <PopupMenuEntry<_ConversationAction>>[
-                PopupMenuItem<_ConversationAction>(
-                  value: _ConversationAction.pin,
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      thread.isPinned
-                          ? Icons.push_pin_rounded
-                          : Icons.push_pin_outlined,
+              ),
+              trailing: PopupMenuButton<_ConversationAction>(
+                tooltip: 'Conversation actions',
+                icon: const Icon(Icons.more_horiz),
+                onSelected: (_ConversationAction action) {
+                  switch (action) {
+                    case _ConversationAction.rename:
+                      onRenameThread(thread.id);
+                      return;
+                    case _ConversationAction.pin:
+                      onTogglePinnedThread(thread.id);
+                      return;
+                    case _ConversationAction.duplicate:
+                      onDuplicateThread(thread.id);
+                      return;
+                    case _ConversationAction.delete:
+                      onDeleteThread(thread.id);
+                      return;
+                    case _ConversationAction.moveToFolder:
+                      _showMoveToFolderDialog(context, thread);
+                      return;
+                  }
+                },
+                itemBuilder: (BuildContext context) =>
+                    <PopupMenuEntry<_ConversationAction>>[
+                  PopupMenuItem<_ConversationAction>(
+                    value: _ConversationAction.pin,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        thread.isPinned
+                            ? Icons.push_pin_rounded
+                            : Icons.push_pin_outlined,
+                      ),
+                      title: Text(thread.isPinned ? 'Unpin' : 'Pin'),
                     ),
-                    title: Text(thread.isPinned ? 'Unpin' : 'Pin'),
                   ),
-                ),
-                const PopupMenuItem<_ConversationAction>(
-                  value: _ConversationAction.rename,
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.drive_file_rename_outline),
-                    title: Text('Rename'),
-                  ),
-                ),
-                const PopupMenuItem<_ConversationAction>(
-                  value: _ConversationAction.duplicate,
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.copy_all_outlined),
-                    title: Text('Duplicate'),
-                  ),
-                ),
-                const PopupMenuItem<_ConversationAction>(
-                  value: _ConversationAction.moveToFolder,
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.drive_file_move_outline),
-                    title: Text('Move to folder'),
-                  ),
-                ),
-                PopupMenuItem<_ConversationAction>(
-                  value: _ConversationAction.delete,
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      Icons.delete_outline,
-                      color: context.openChatPalette.danger,
+                  const PopupMenuItem<_ConversationAction>(
+                    value: _ConversationAction.rename,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.drive_file_rename_outline),
+                      title: Text('Rename'),
                     ),
-                    title: Text(
-                      'Delete',
-                      style: TextStyle(
+                  ),
+                  const PopupMenuItem<_ConversationAction>(
+                    value: _ConversationAction.duplicate,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.copy_all_outlined),
+                      title: Text('Duplicate'),
+                    ),
+                  ),
+                  const PopupMenuItem<_ConversationAction>(
+                    value: _ConversationAction.moveToFolder,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.drive_file_move_outline),
+                      title: Text('Move to folder'),
+                    ),
+                  ),
+                  PopupMenuItem<_ConversationAction>(
+                    value: _ConversationAction.delete,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.delete_outline,
                         color: context.openChatPalette.danger,
                       ),
+                      title: Text(
+                        'Delete',
+                        style: TextStyle(
+                          color: context.openChatPalette.danger,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ), // closes Material (Dismissible child)
-        ); // closes Dismissible
+        );
       },
     );
   }
 }
 
 enum _ConversationAction { pin, rename, duplicate, delete, moveToFolder }
-

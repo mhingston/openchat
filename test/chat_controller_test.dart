@@ -270,7 +270,8 @@ void main() {
         contains('It fetches web pages and cites sources in answers.'),
       );
       expect(messages.first['content'], contains('Do not mention tools'));
-      expect(messages.first['content'], contains('Latest extracted headlines:'));
+      expect(
+          messages.first['content'], contains('Latest extracted headlines:'));
       expect(messages.first['content'], contains('Sources:'));
     });
 
@@ -291,8 +292,7 @@ void main() {
                 'choices': <Map<String, Object>>[
                   <String, Object>{
                     'message': <String, String>{
-                      'content':
-                          'I\'ll fetch the homepage.\n\n'
+                      'content': 'I\'ll fetch the homepage.\n\n'
                           'Fetching BBC News...\n\n'
                           'tool_call(requests): [\n'
                           '{"url": "https://www.bbc.com/news"}\n'
@@ -414,8 +414,7 @@ void main() {
         );
       }
 
-      final ChatMessage finalMessage =
-          controller.currentThread!.messages.last;
+      final ChatMessage finalMessage = controller.currentThread!.messages.last;
       expect(finalMessage.text, contains('42'));
       expect(finalMessage.text, isNot(contains('<think>')));
       expect(finalMessage.text, isNot(contains('</think>')));
@@ -505,7 +504,8 @@ void main() {
       final List<dynamic> messages = requestBody['messages'] as List<dynamic>;
       expect(messages.first['role'], 'system');
       expect(messages.first['content'], contains('Search snippet only.'));
-      expect(messages.first['content'], isNot(contains('Fetched page excerpts:')));
+      expect(
+          messages.first['content'], isNot(contains('Fetched page excerpts:')));
     });
 
     test('deleteMessage removes a message and persists the updated thread',
@@ -625,6 +625,7 @@ void main() {
           controller.currentThread!.messages.last;
       expect(retriedMessage.role, ChatRole.assistant);
       expect(retriedMessage.text, 'Assistant reply');
+      expect(retriedMessage.createdAt, isNot(timestamp));
       expect(retriedMessage.isError, isFalse);
       expect(retriedMessage.isStreaming, isFalse);
     });
@@ -967,7 +968,7 @@ Future<({ChatController controller, ChatStore store})>
   final ChatStore store = ChatStore(preferences);
   final ChatController controller = ChatController(
     chatStore: store,
-        promptTemplateStore: PromptTemplateStore(preferences),
+    promptTemplateStore: PromptTemplateStore(preferences),
     apiClient: _createClient(),
   );
   await controller.initialize();

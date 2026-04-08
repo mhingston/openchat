@@ -11,6 +11,8 @@ class ChatEmptyState extends StatelessWidget {
     this.detail,
     this.actionLabel,
     this.onAction,
+    this.starterPrompts = const <String>[],
+    this.onStarterPromptSelected,
   });
 
   final IconData icon;
@@ -19,10 +21,16 @@ class ChatEmptyState extends StatelessWidget {
   final String? detail;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final List<String> starterPrompts;
+  final ValueChanged<String>? onStarterPromptSelected;
 
   @override
   Widget build(BuildContext context) {
     final String? trimmedDetail = detail?.trim();
+    final List<String> visibleStarterPrompts = starterPrompts
+        .map((String prompt) => prompt.trim())
+        .where((String prompt) => prompt.isNotEmpty)
+        .toList(growable: false);
 
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
@@ -64,28 +72,44 @@ class ChatEmptyState extends StatelessWidget {
                           color: context.openChatPalette.mutedText,
                         ),
                   ),
-                  if (trimmedDetail != null && trimmedDetail.isNotEmpty)
-                    ...<Widget>[
-                      const SizedBox(height: 16),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: context.openChatPalette.surface,
-                          borderRadius: BorderRadius.circular(18),
-                          border:
-                              Border.all(color: context.openChatPalette.border),
-                        ),
-                        child: Text(
-                          trimmedDetail,
-                          textAlign: TextAlign.center,
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: context.openChatPalette.danger,
-                                  ),
-                        ),
+                  if (trimmedDetail != null &&
+                      trimmedDetail.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 16),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: context.openChatPalette.surface,
+                        borderRadius: BorderRadius.circular(18),
+                        border:
+                            Border.all(color: context.openChatPalette.border),
                       ),
-                    ],
+                      child: Text(
+                        trimmedDetail,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: context.openChatPalette.danger,
+                            ),
+                      ),
+                    ),
+                  ],
+                  if (visibleStarterPrompts.isNotEmpty &&
+                      onStarterPromptSelected != null) ...<Widget>[
+                    const SizedBox(height: 20),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: visibleStarterPrompts
+                          .map(
+                            (String prompt) => ActionChip(
+                              label: Text(prompt),
+                              onPressed: () => onStarterPromptSelected!(prompt),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                  ],
                   if (actionLabel != null && onAction != null) ...<Widget>[
                     const SizedBox(height: 20),
                     FilledButton(

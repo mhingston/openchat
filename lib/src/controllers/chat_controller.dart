@@ -29,10 +29,9 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         _apiClient = apiClient,
         _promptTemplateStore = promptTemplateStore,
         _webSearchService = webSearchService ?? WebSearchService(),
-        _webPageBrowseService =
-            webPageBrowseService ?? WebPageBrowseService(),
-        _ownsWebServices = webSearchService == null &&
-            webPageBrowseService == null,
+        _webPageBrowseService = webPageBrowseService ?? WebPageBrowseService(),
+        _ownsWebServices =
+            webSearchService == null && webPageBrowseService == null,
         _deepResearchMaxRounds = deepResearchMaxRounds;
 
   final ChatStore _chatStore;
@@ -175,7 +174,8 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
   // --- Prompt CRUD ---
 
   Future<void> savePrompt(PromptTemplate prompt) async {
-    final int index = _prompts.indexWhere((PromptTemplate p) => p.id == prompt.id);
+    final int index =
+        _prompts.indexWhere((PromptTemplate p) => p.id == prompt.id);
     if (index == -1) {
       _prompts.add(prompt);
     } else {
@@ -219,7 +219,8 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
   /// Renames an existing folder and updates all threads that reference it.
   Future<void> renameFolder(String folderId, String name) async {
     if (!_folders.containsKey(folderId)) return;
-    final String trimmed = name.trim().isEmpty ? _folders[folderId]! : name.trim();
+    final String trimmed =
+        name.trim().isEmpty ? _folders[folderId]! : name.trim();
     _folders[folderId] = trimmed;
     for (int i = 0; i < _threads.length; i++) {
       if (_threads[i].folderId == folderId) {
@@ -233,8 +234,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Moves a thread to a folder. Pass [folderId] == null to remove from folder.
   Future<void> moveThreadToFolder(String threadId, String? folderId) async {
-    final int index =
-        _threads.indexWhere((ChatThread t) => t.id == threadId);
+    final int index = _threads.indexWhere((ChatThread t) => t.id == threadId);
     if (index == -1) return;
     if (folderId == null) {
       _threads[index] =
@@ -475,8 +475,10 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     final List<ChatMessage> requestMessages = List<ChatMessage>.from(
       thread.messages.take(messageIndex),
     );
+    final DateTime now = DateTime.now();
     final ChatMessage retryMessage = failedMessage.copyWith(
       text: '',
+      createdAt: now,
       isStreaming: true,
       isError: false,
     );
@@ -486,7 +488,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         ...requestMessages,
         retryMessage,
       ],
-      updatedAt: DateTime.now(),
+      updatedAt: now,
     );
     _selectedThreadId = thread.id;
     _lastError = null;
@@ -497,13 +499,16 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     try {
       await RequestForegroundService.start();
       _streamCompleter = Completer<void>();
-      _activeStreamSubscription = _apiClient.streamChatCompletion(
+      _activeStreamSubscription = _apiClient
+          .streamChatCompletion(
         config: config,
         messages: requestMessages,
-      ).listen(
+      )
+          .listen(
         (ChatCompletionChunk chunk) {
           if (_cancelRequested) return;
           if (chunk.isDone) {
+            final DateTime completedAt = DateTime.now();
             _updateMessage(
               threadId: thread.id,
               messageId: retryMessage.id,
@@ -511,11 +516,15 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
                 if (message.text.trim().isEmpty) {
                   return message.copyWith(
                     text: 'No response received.',
+                    createdAt: completedAt,
                     isStreaming: false,
                     isError: true,
                   );
                 }
-                return message.copyWith(isStreaming: false);
+                return message.copyWith(
+                  createdAt: completedAt,
+                  isStreaming: false,
+                );
               },
             );
             HapticFeedback.selectionClick();
@@ -553,6 +562,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
           updater: (ChatMessage message) => message.copyWith(
             text:
                 'Unable to reach the provider right now. Check settings and try again.\n\n${error.toString()}',
+            createdAt: DateTime.now(),
             isStreaming: false,
             isError: true,
           ),
@@ -567,7 +577,10 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         _updateMessage(
           threadId: thread.id,
           messageId: retryMessage.id,
-          updater: (ChatMessage msg) => msg.copyWith(isStreaming: false),
+          updater: (ChatMessage msg) => msg.copyWith(
+            createdAt: DateTime.now(),
+            isStreaming: false,
+          ),
         );
       }
       _isSending = false;
@@ -790,14 +803,14 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         (jinaApiKey == null || jinaApiKey.isEmpty) ? null : jinaApiKey;
     final String? tavily =
         (tavilyApiKey == null || tavilyApiKey.isEmpty) ? null : tavilyApiKey;
-    final String? firecrawl = (firecrawlApiKey == null ||
-            firecrawlApiKey.isEmpty)
-        ? null
-        : firecrawlApiKey;
-    final String? brave = (braveSearchApiKey == null ||
-            braveSearchApiKey.isEmpty)
-        ? null
-        : braveSearchApiKey;
+    final String? firecrawl =
+        (firecrawlApiKey == null || firecrawlApiKey.isEmpty)
+            ? null
+            : firecrawlApiKey;
+    final String? brave =
+        (braveSearchApiKey == null || braveSearchApiKey.isEmpty)
+            ? null
+            : braveSearchApiKey;
 
     if (_ownsWebServices) {
       _webSearchService.dispose();
@@ -1016,13 +1029,16 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       for (int attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           _streamCompleter = Completer<void>();
-          _activeStreamSubscription = _apiClient.streamChatCompletion(
+          _activeStreamSubscription = _apiClient
+              .streamChatCompletion(
             config: effectiveConfig,
             messages: requestMessages,
-          ).listen(
+          )
+              .listen(
             (ChatCompletionChunk chunk) {
               if (_cancelRequested) return;
               if (chunk.isDone) {
+                final DateTime completedAt = DateTime.now();
                 final String sanitizedText =
                     _sanitizeAssistantOutput(rawBuffer.toString());
                 _updateMessage(
@@ -1032,12 +1048,14 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
                     if (sanitizedText.trim().isEmpty) {
                       return message.copyWith(
                         text: 'No response received.',
+                        createdAt: completedAt,
                         isStreaming: false,
                         isError: true,
                       );
                     }
                     return message.copyWith(
                       text: sanitizedText,
+                      createdAt: completedAt,
                       isStreaming: false,
                       sources: sources,
                     );
@@ -1111,7 +1129,8 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
               'connection. Try disabling battery optimisation for OpenChat '
               'in Android Settings → Apps → OpenChat → Battery.\n\n'
               '${error.toString()}';
-        } else if (errorStr.contains('429') || errorStr.contains('rate limit')) {
+        } else if (errorStr.contains('429') ||
+            errorStr.contains('rate limit')) {
           errorMessage = 'Rate limit reached — the provider rejected the '
               'request after several retries. Wait a moment and try again.\n\n'
               '${error.toString()}';
@@ -1130,6 +1149,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
           messageId: assistantMessage.id,
           updater: (ChatMessage message) => message.copyWith(
             text: errorMessage,
+            createdAt: DateTime.now(),
             isStreaming: false,
             isError: true,
           ),
@@ -1144,7 +1164,10 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         _updateMessage(
           threadId: thread.id,
           messageId: assistantMessage.id,
-          updater: (ChatMessage msg) => msg.copyWith(isStreaming: false),
+          updater: (ChatMessage msg) => msg.copyWith(
+            createdAt: DateTime.now(),
+            isStreaming: false,
+          ),
         );
       }
       _isSending = false;
@@ -1214,7 +1237,8 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     _searchStatus = 'Fetching page…';
     notifyListeners();
 
-    final WebPageExcerpt? excerpt = await _webPageBrowseService.fetchUrl(directUrl);
+    final WebPageExcerpt? excerpt =
+        await _webPageBrowseService.fetchUrl(directUrl);
 
     _searchStatus = null;
     notifyListeners();
@@ -1389,8 +1413,11 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
 
     final StringBuffer contextBuffer = StringBuffer();
     for (int i = 0; i < allRounds.length; i += 1) {
-      final (String query, List<WebSearchResult> results,
-          List<WebPageExcerpt> excerpts) = allRounds[i];
+      final (
+        String query,
+        List<WebSearchResult> results,
+        List<WebPageExcerpt> excerpts
+      ) = allRounds[i];
       if (i > 0) {
         contextBuffer.writeln();
         contextBuffer.writeln('---');
@@ -1429,8 +1456,11 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         completedRounds,
   }) async {
     final StringBuffer summary = StringBuffer();
-    for (final (String query, List<WebSearchResult> results,
-        List<WebPageExcerpt> excerpts) in completedRounds) {
+    for (final (
+          String query,
+          List<WebSearchResult> results,
+          List<WebPageExcerpt> excerpts
+        ) in completedRounds) {
       summary.writeln('Query: "$query"');
       for (final WebSearchResult r in results.take(5)) {
         final String snippet = r.snippet.length > 120
@@ -1455,8 +1485,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         'with a newline-separated list of up to 3 targeted search queries '
         '(no numbering, no explanations, nothing else).';
 
-    final String userContent =
-        'User question: $userQuery\n\n'
+    final String userContent = 'User question: $userQuery\n\n'
         'Research gathered so far:\n${summary.toString().trim()}\n\n'
         'Is the research sufficient to fully answer the question? '
         'Reply DONE or list specific follow-up queries.';
@@ -1555,7 +1584,8 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     String sanitized = text
         // Pass 1: remove complete <think>...</think> blocks.
         .replaceAll(
-          RegExp(r'<think\b[^>]*>.*?</think>', caseSensitive: false, dotAll: true),
+          RegExp(r'<think\b[^>]*>.*?</think>',
+              caseSensitive: false, dotAll: true),
           ' ',
         )
         // Pass 2: remove any unclosed <think> block that is still arriving —
@@ -1678,9 +1708,8 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     for (final ChatMessage m in recent) {
       if (m == latestUser) continue;
       final String snippet = m.text.trim();
-      final String short = snippet.length > 120
-          ? '${snippet.substring(0, 120)}…'
-          : snippet;
+      final String short =
+          snippet.length > 120 ? '${snippet.substring(0, 120)}…' : snippet;
       buffer.write('${short.replaceAll('\n', ' ')} ');
     }
     buffer.write(latestText);

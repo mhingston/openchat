@@ -22,8 +22,16 @@ import '../widgets/chat_empty_state.dart';
 import '../widgets/chat_message_bubble.dart';
 import '../widgets/conversation_drawer.dart';
 import '../widgets/conversation_search_sheet.dart';
+import '../widgets/keyboard_shortcuts_help_dialog.dart';
 import '../widgets/open_chat_header.dart';
 import '../widgets/settings_sheet.dart';
+
+const List<String> _starterPrompts = <String>[
+  'Summarize this topic',
+  'Brainstorm ideas',
+  'Draft a message',
+  'Explain it simply',
+];
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -136,6 +144,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? null
                     : () => _exportThread(context, currentThread.id),
                 onSettingsPressed: () => _openSettingsSheet(context),
+                onShortcutsHelpPressed: () => _openKeyboardShortcutsHelp(
+                  context,
+                ),
               ),
               if (showProviderBanner)
                 _ProviderSetupBanner(
@@ -260,22 +271,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return Shortcuts(
-      shortcuts: <ShortcutActivator, Intent>{
-        OpenChatKeyboardShortcuts.primaryActivator(LogicalKeyboardKey.keyN):
-            const NewChatIntent(),
-        OpenChatKeyboardShortcuts.primaryActivator(LogicalKeyboardKey.keyK):
-            const NewChatIntent(),
-        OpenChatKeyboardShortcuts.primaryActivator(LogicalKeyboardKey.comma):
-            const OpenSettingsIntent(),
-        OpenChatKeyboardShortcuts.primaryActivator(LogicalKeyboardKey.keyF):
-            const FocusConversationSearchIntent(),
-        OpenChatKeyboardShortcuts.primaryActivator(
-          LogicalKeyboardKey.bracketLeft,
-        ): const SelectPreviousConversationIntent(),
-        OpenChatKeyboardShortcuts.primaryActivator(
-          LogicalKeyboardKey.bracketRight,
-        ): const SelectNextConversationIntent(),
-      },
+      shortcuts: OpenChatKeyboardShortcuts.homeScreenBindings(),
       child: Actions(
         actions: <Type, Action<Intent>>{
           NewChatIntent: CallbackAction<NewChatIntent>(
@@ -450,6 +446,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _openKeyboardShortcutsHelp(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return const KeyboardShortcutsHelpDialog();
+      },
+    );
+  }
+
   Widget _buildConversationPane(
     BuildContext context, {
     required ChatController chatController,
@@ -483,6 +488,8 @@ class _HomeScreenState extends State<HomeScreen> {
         onAction: () async {
           await context.read<ChatController>().createThread();
         },
+        starterPrompts: _starterPrompts,
+        onStarterPromptSelected: _applyStarterPrompt,
       );
     }
 
@@ -492,6 +499,8 @@ class _HomeScreenState extends State<HomeScreen> {
         title: currentThread.title,
         message: 'This conversation is empty. Send a message to get started.',
         detail: lastError,
+        starterPrompts: _starterPrompts,
+        onStarterPromptSelected: _applyStarterPrompt,
       );
     }
 
@@ -513,46 +522,46 @@ class _HomeScreenState extends State<HomeScreen> {
               itemCount: currentThread.messages.length,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemBuilder: (BuildContext context, int index) {
-              final ChatMessage message = currentThread.messages[index];
-              final bool canRetry =
-                  index == currentThread.messages.length - 1 &&
-                      message.role == ChatRole.assistant &&
-                      message.isError &&
-                      !message.isStreaming;
-              return ChatMessageBubble(
-                message: message,
-                onCopy: message.text.trim().isEmpty
-                    ? null
-                    : () => _copyMessage(message.text),
-                onRetry: canRetry
-                    ? () => _retryMessage(
-                          context,
-                          threadId: currentThread.id,
-                          messageId: message.id,
-                        )
-                    : null,
-                onDelete: () => _deleteMessage(
-                  context,
-                  threadId: currentThread.id,
-                  messageId: message.id,
-                ),
-                onEdit: message.role == ChatRole.user
-                    ? () => _startEditingMessage(
-                          threadId: currentThread.id,
-                          message: message,
-                        )
-                    : null,
-                onFork: message.role == ChatRole.user
-                    ? () => _forkFromMessage(
-                          context,
-                          threadId: currentThread.id,
-                          messageId: message.id,
-                        )
-                    : null,
-              );
-            },
+                final ChatMessage message = currentThread.messages[index];
+                final bool canRetry =
+                    index == currentThread.messages.length - 1 &&
+                        message.role == ChatRole.assistant &&
+                        message.isError &&
+                        !message.isStreaming;
+                return ChatMessageBubble(
+                  message: message,
+                  onCopy: message.text.trim().isEmpty
+                      ? null
+                      : () => _copyMessage(message.text),
+                  onRetry: canRetry
+                      ? () => _retryMessage(
+                            context,
+                            threadId: currentThread.id,
+                            messageId: message.id,
+                          )
+                      : null,
+                  onDelete: () => _deleteMessage(
+                    context,
+                    threadId: currentThread.id,
+                    messageId: message.id,
+                  ),
+                  onEdit: message.role == ChatRole.user
+                      ? () => _startEditingMessage(
+                            threadId: currentThread.id,
+                            message: message,
+                          )
+                      : null,
+                  onFork: message.role == ChatRole.user
+                      ? () => _forkFromMessage(
+                            context,
+                            threadId: currentThread.id,
+                            messageId: message.id,
+                          )
+                      : null,
+                );
+              },
+            ),
           ),
-        ),
         ),
       ],
     );
@@ -763,6 +772,16 @@ class _HomeScreenState extends State<HomeScreen> {
       _editingMessageId = message.id;
       _editingDraftText = message.text;
       _editingBaseAttachments = List<ChatAttachment>.from(message.attachments);
+      _composerDraftVersion += 1;
+    });
+  }
+
+  void _applyStarterPrompt(String prompt) {
+    setState(() {
+      _editingThreadId = null;
+      _editingMessageId = null;
+      _editingBaseAttachments = const <ChatAttachment>[];
+      _editingDraftText = prompt;
       _composerDraftVersion += 1;
     });
   }

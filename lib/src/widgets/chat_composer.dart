@@ -219,13 +219,7 @@ class _ChatComposerState extends State<ChatComposer> {
     }
 
     return Shortcuts(
-      shortcuts: <ShortcutActivator, Intent>{
-        OpenChatKeyboardShortcuts.primaryActivator(LogicalKeyboardKey.enter):
-            const SendMessageIntent(),
-        OpenChatKeyboardShortcuts.escapeActivator: const ClearDraftIntent(),
-        OpenChatKeyboardShortcuts.primaryActivator(LogicalKeyboardKey.slash):
-            const ToggleWebSearchIntent(),
-      },
+      shortcuts: OpenChatKeyboardShortcuts.composerBindings(),
       child: Actions(
         actions: <Type, Action<Intent>>{
           SendMessageIntent: CallbackAction<SendMessageIntent>(
@@ -436,7 +430,9 @@ class _ChatComposerState extends State<ChatComposer> {
                   Icons.clear_rounded,
                   size: iconSize,
                 ),
-                tooltip: isDesktopOrWeb ? 'Clear draft (Esc)' : 'Clear draft',
+                tooltip: isDesktopOrWeb
+                    ? 'Clear draft (${OpenChatKeyboardShortcuts.formatShortcutLabel(OpenChatKeyboardShortcuts.escapeActivator)})'
+                    : 'Clear draft',
               ),
             )
           : SizedBox(
@@ -493,7 +489,7 @@ class _ChatComposerState extends State<ChatComposer> {
       message: widget.busy
           ? 'Stop'
           : isDesktopOrWeb
-              ? 'Send (${OpenChatKeyboardShortcuts.primaryModifierLabel}+Enter)'
+              ? 'Send (${OpenChatKeyboardShortcuts.formatShortcutLabel(OpenChatKeyboardShortcuts.sendMessageActivator)})'
               : 'Send',
       child: SizedBox(
         height: buttonSize,
@@ -763,7 +759,8 @@ class _ChatComposerState extends State<ChatComposer> {
       _webSearchEnabled = newValue;
     });
     unawaited(SharedPreferences.getInstance().then(
-      (SharedPreferences prefs) => prefs.setBool(_kWebSearchEnabledKey, newValue),
+      (SharedPreferences prefs) =>
+          prefs.setBool(_kWebSearchEnabledKey, newValue),
     ));
   }
 

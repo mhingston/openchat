@@ -1,13 +1,15 @@
 name: openchat
 description: Source-first OpenChat v1 Flutter client.
 publish_to: 'none'
-version: 0.4.4
+version: 0.5.0
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
 
 dependencies:
   flutter:
+    sdk: flutter
+  flutter_localizations:
     sdk: flutter
   cupertino_icons: ^1.0.8
   flutter_markdown_plus: ^1.0.7

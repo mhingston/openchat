@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/conversation_search_result.dart';
 import '../theme/app_theme.dart';
+import '../utils/localized_timestamp_formatter.dart';
 
 class ConversationSearchSheet extends StatefulWidget {
   const ConversationSearchSheet({
@@ -136,6 +137,15 @@ class _ConversationSearchSheetState extends State<ConversationSearchSheet> {
       separatorBuilder: (_, __) => const SizedBox(height: 8),
       itemBuilder: (BuildContext context, int index) {
         final ConversationSearchResult result = _results[index];
+        final String updatedLabel =
+            LocalizedTimestampFormatter.formatCompactTimestamp(
+          context,
+          result.updatedAt,
+        );
+        final TextStyle? metadataStyle = Theme.of(context)
+            .textTheme
+            .labelMedium
+            ?.copyWith(color: context.openChatPalette.mutedText);
         return Card(
           margin: EdgeInsets.zero,
           child: ListTile(
@@ -173,11 +183,25 @@ class _ConversationSearchSheetState extends State<ConversationSearchSheet> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  Text(
-                    result.matchLabel,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: context.openChatPalette.mutedText,
+                  Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          result.matchLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: metadataStyle,
                         ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        updatedLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.fade,
+                        softWrap: false,
+                        style: metadataStyle,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(

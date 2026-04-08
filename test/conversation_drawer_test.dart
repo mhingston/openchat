@@ -44,6 +44,7 @@ void main() {
     WidgetTester tester,
   ) async {
     final ChatController controller = await _createController();
+    final DateTime updatedAt = DateTime(2001, 1, 2, 12, 30);
     int createThreadCount = 0;
     int exportAllCount = 0;
     int importCount = 0;
@@ -59,7 +60,7 @@ void main() {
               title: 'Sprint planning',
               messages: const [],
               createdAt: DateTime(2026, 3, 16, 12, 0),
-              updatedAt: DateTime(2026, 3, 16, 12, 0),
+              updatedAt: updatedAt,
             ),
           ],
           selectedThreadId: 'thread-1',
@@ -93,10 +94,15 @@ void main() {
     await tester.tap(find.byKey(const Key('drawer-import-button')));
     await tester.pump();
 
+    final BuildContext context = tester.element(find.text('Sprint planning'));
+    final String expectedTimestamp =
+        MaterialLocalizations.of(context).formatCompactDate(updatedAt);
+
     expect(createThreadCount, 1);
     expect(searchCount, 1);
     expect(exportAllCount, 1);
     expect(importCount, 1);
+    expect(find.text(expectedTimestamp), findsOneWidget);
     expect(find.byKey(const Key('drawer-export-current-button')), findsNothing);
     expect(find.byTooltip('New chat'), findsOneWidget);
   });

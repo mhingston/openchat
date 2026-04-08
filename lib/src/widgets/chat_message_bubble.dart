@@ -12,6 +12,7 @@ import '../models/attachment.dart';
 import '../models/chat_message.dart';
 import '../services/tts_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/localized_timestamp_formatter.dart';
 import 'attachment_file_image_provider.dart';
 import 'chat_markdown.dart';
 
@@ -41,6 +42,11 @@ class ChatMessageBubble extends StatelessWidget {
     final Color bubbleColor = isUser
         ? context.openChatPalette.userBubble
         : context.openChatPalette.assistantBubble;
+    final bool showAssistantActions = !message.isStreaming &&
+        message.role == ChatRole.assistant &&
+        message.text.trim().isNotEmpty;
+    final bool showTimestamp = !message.isStreaming &&
+        (message.hasContent || message.isError || message.sources.isNotEmpty);
 
     final Widget bubble = Align(
       alignment: alignment,
@@ -156,19 +162,24 @@ class ChatMessageBubble extends StatelessWidget {
                         ),
                   ),
                 ],
-                if (!message.isStreaming &&
-                    message.role == ChatRole.assistant &&
-                    message.text.trim().isNotEmpty) ...<Widget>[
+                if (showTimestamp) ...<Widget>[
                   const SizedBox(height: 8),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      _InlineCopyButton(text: message.text),
-                      _InlineSpeakerButton(message: message),
-                    ],
+                  _MessageFooter(
+                    message: message,
+                    showAssistantActions: showAssistantActions,
+                    timestamp: LocalizedTimestampFormatter.formatMessageTime(
+                      context,
+                      message.createdAt,
+                    ),
+                    tooltipTimestamp:
+                        LocalizedTimestampFormatter.formatFullDateTime(
+                      context,
+                      message.createdAt,
+                    ),
                   ),
                 ],
-                if (message.sources.isNotEmpty && !message.isStreaming) ...<Widget>[
+                if (message.sources.isNotEmpty &&
+                    !message.isStreaming) ...<Widget>[
                   const SizedBox(height: 8),
                   Divider(height: 1, color: context.openChatPalette.border),
                   const SizedBox(height: 8),
@@ -283,6 +294,64 @@ class ChatMessageBubble extends StatelessWidget {
 
 enum _MessageAction { copy, edit, fork, retry, delete }
 
+class _MessageFooter extends StatelessWidget {
+  const _MessageFooter({
+    required this.message,
+    required this.showAssistantActions,
+    required this.timestamp,
+    required this.tooltipTimestamp,
+  });
+
+  final ChatMessage message;
+  final bool showAssistantActions;
+  final String timestamp;
+  final String tooltipTimestamp;
+
+  @override
+  Widget build(BuildContext context) {
+    final TextStyle? timestampStyle = Theme.of(context)
+        .textTheme
+        .labelSmall
+        ?.copyWith(color: context.openChatPalette.mutedText);
+
+    if (!showAssistantActions) {
+      return Align(
+        alignment: Alignment.centerRight,
+        child: Tooltip(
+          message: tooltipTimestamp,
+          child: Text(timestamp, style: timestampStyle),
+        ),
+      );
+    }
+
+    return Row(
+      children: <Widget>[
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            _InlineCopyButton(text: message.text),
+            _InlineSpeakerButton(message: message),
+          ],
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Tooltip(
+            message: tooltipTimestamp,
+            child: Text(
+              timestamp,
+              maxLines: 1,
+              overflow: TextOverflow.fade,
+              softWrap: false,
+              textAlign: TextAlign.end,
+              style: timestampStyle,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _InlineCopyButton extends StatefulWidget {
   const _InlineCopyButton({required this.text});
 
@@ -349,12 +418,9 @@ class _InlineSpeakerButton extends StatelessWidget {
     final bool isThisSpeaking = ttsService.speakingMessageId == message.id;
 
     return TextButton.icon(
-      onPressed: () =>
-          ttsService.speak(message.text, messageId: message.id),
+      onPressed: () => ttsService.speak(message.text, messageId: message.id),
       icon: Icon(
-        isThisSpeaking
-            ? Icons.stop_circle_outlined
-            : Icons.volume_up_outlined,
+        isThisSpeaking ? Icons.stop_circle_outlined : Icons.volume_up_outlined,
         size: 14,
       ),
       label: Text(isThisSpeaking ? 'Stop' : 'Speak'),
@@ -391,40 +457,41 @@ class _SourcesFooter extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         ...sources.asMap().entries.map(
-          (MapEntry<int, String> entry) => Padding(
-            padding: const EdgeInsets.only(bottom: 2),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  '[${entry.key + 1}] ',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: context.openChatPalette.mutedText,
+              (MapEntry<int, String> entry) => Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      '[${entry.key + 1}] ',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: context.openChatPalette.mutedText,
+                          ),
+                    ),
+                    Expanded(
+                      child: SelectableText(
+                        entry.value,
+                        onTap: () {
+                          final Uri? uri = Uri.tryParse(entry.value);
+                          if (uri != null) {
+                            unawaited(
+                              launchUrl(uri,
+                                  mode: LaunchMode.externalApplication),
+                            );
+                          }
+                        },
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                              decoration: TextDecoration.underline,
+                              decorationColor:
+                                  Theme.of(context).colorScheme.primary,
+                            ),
                       ),
+                    ),
+                  ],
                 ),
-                Expanded(
-                  child: SelectableText(
-                    entry.value,
-                    onTap: () {
-                      final Uri? uri = Uri.tryParse(entry.value);
-                      if (uri != null) {
-                        unawaited(
-                          launchUrl(uri, mode: LaunchMode.externalApplication),
-                        );
-                      }
-                    },
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.primary,
-                          decoration: TextDecoration.underline,
-                          decorationColor:
-                              Theme.of(context).colorScheme.primary,
-                        ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        ),
       ],
     );
   }

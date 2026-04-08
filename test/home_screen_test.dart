@@ -94,6 +94,7 @@ void main() {
 
     expect(find.text('Set up a provider to start'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Open settings'), findsOneWidget);
+    expect(find.text('Summarize this topic'), findsNothing);
     expect(
       find.text('Set up a provider to unlock the composer'),
       findsNothing,
@@ -102,6 +103,160 @@ void main() {
       tester.widget<TextField>(find.byType(TextField).first).enabled,
       isFalse,
     );
+  });
+
+  testWidgets('configured empty state shows starter prompts and fills draft',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+
+    final SettingsController settingsController = SettingsController(
+      providerConfigStore: ProviderConfigStore(preferences),
+      appSettingsStore: AppSettingsStore(preferences),
+    );
+    await settingsController.initialize();
+    await settingsController.saveConfiguration(
+      providerConfig: const ProviderConfig(
+        presetId: 'openai',
+        label: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'sk-test-secret',
+        model: 'gpt-4o-mini',
+        systemPrompt: '',
+        temperature: 1.0,
+        streamResponses: true,
+      ),
+      themeMode: ThemeMode.dark,
+    );
+
+    final ChatController chatController = ChatController(
+      chatStore: ChatStore(preferences),
+      promptTemplateStore: PromptTemplateStore(preferences),
+      apiClient: OpenAiCompatibleClient(
+        isWebOverride: false,
+        httpClient: MockClient((http.Request request) async {
+          return http.Response(
+            jsonEncode(<String, Object>{
+              'choices': <Map<String, Object>>[
+                <String, Object>{
+                  'message': <String, String>{'content': 'Assistant reply'},
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      ),
+    );
+    await chatController.initialize();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: <SingleChildWidget>[
+          ChangeNotifierProvider<SettingsController>.value(
+            value: settingsController,
+          ),
+          ChangeNotifierProvider<ChatController>.value(value: chatController),
+          ChangeNotifierProvider<VoiceInputService>(
+            create: (_) => VoiceInputService.withState(
+              const VoiceInputState(status: VoiceInputStatus.idle),
+            ),
+          ),
+          ChangeNotifierProvider<TtsService>(create: (_) => TtsService()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          darkTheme: AppTheme.darkTheme(),
+          home: const HomeScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No conversations yet'), findsOneWidget);
+    expect(find.widgetWithText(ActionChip, 'Draft a message'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ActionChip, 'Draft a message'));
+    await tester.pumpAndSettle();
+
+    final TextField composerField = tester.widget<TextField>(
+      find.byType(TextField).first,
+    );
+    expect(composerField.controller?.text, 'Draft a message');
+  });
+
+  testWidgets('empty threads keep starter prompts when provider is configured',
+      (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+
+    final SettingsController settingsController = SettingsController(
+      providerConfigStore: ProviderConfigStore(preferences),
+      appSettingsStore: AppSettingsStore(preferences),
+    );
+    await settingsController.initialize();
+    await settingsController.saveConfiguration(
+      providerConfig: const ProviderConfig(
+        presetId: 'openai',
+        label: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'sk-test-secret',
+        model: 'gpt-4o-mini',
+        systemPrompt: '',
+        temperature: 1.0,
+        streamResponses: true,
+      ),
+      themeMode: ThemeMode.dark,
+    );
+
+    final ChatController chatController = ChatController(
+      chatStore: ChatStore(preferences),
+      promptTemplateStore: PromptTemplateStore(preferences),
+      apiClient: OpenAiCompatibleClient(
+        isWebOverride: false,
+        httpClient: MockClient((http.Request request) async {
+          return http.Response(
+            jsonEncode(<String, Object>{
+              'choices': <Map<String, Object>>[
+                <String, Object>{
+                  'message': <String, String>{'content': 'Assistant reply'},
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      ),
+    );
+    await chatController.initialize();
+    await chatController.createThread();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: <SingleChildWidget>[
+          ChangeNotifierProvider<SettingsController>.value(
+            value: settingsController,
+          ),
+          ChangeNotifierProvider<ChatController>.value(value: chatController),
+          ChangeNotifierProvider<VoiceInputService>(
+            create: (_) => VoiceInputService.withState(
+              const VoiceInputState(status: VoiceInputStatus.idle),
+            ),
+          ),
+          ChangeNotifierProvider<TtsService>(create: (_) => TtsService()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          darkTheme: AppTheme.darkTheme(),
+          home: const HomeScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('New chat'), findsOneWidget);
+    expect(
+        find.widgetWithText(ActionChip, 'Explain it simply'), findsOneWidget);
   });
 
   testWidgets('desktop shortcuts open search/settings and navigate threads',
@@ -280,6 +435,147 @@ void main() {
     expect(
         find.byKey(const Key('header-export-current-button')), findsOneWidget);
     expect(find.byTooltip('Export current chat'), findsOneWidget);
+  });
+
+  testWidgets('desktop header opens keyboard shortcuts help', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+
+    final SettingsController settingsController = SettingsController(
+      providerConfigStore: ProviderConfigStore(preferences),
+      appSettingsStore: AppSettingsStore(preferences),
+    );
+    await settingsController.initialize();
+
+    final ChatController chatController = ChatController(
+      chatStore: ChatStore(preferences),
+      promptTemplateStore: PromptTemplateStore(preferences),
+      apiClient: OpenAiCompatibleClient(
+        isWebOverride: false,
+        httpClient: MockClient((http.Request request) async {
+          return http.Response(
+            jsonEncode(<String, Object>{
+              'choices': <Map<String, Object>>[
+                <String, Object>{
+                  'message': <String, String>{'content': 'Assistant reply'},
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      ),
+    );
+    await chatController.initialize();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: <SingleChildWidget>[
+          ChangeNotifierProvider<SettingsController>.value(
+            value: settingsController,
+          ),
+          ChangeNotifierProvider<ChatController>.value(value: chatController),
+          ChangeNotifierProvider<VoiceInputService>(
+            create: (_) => VoiceInputService.withState(
+              const VoiceInputState(status: VoiceInputStatus.idle),
+            ),
+          ),
+          ChangeNotifierProvider<TtsService>(create: (_) => TtsService()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          darkTheme: AppTheme.darkTheme(),
+          home: const HomeScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('header-shortcuts-help-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Keyboard shortcuts'), findsOneWidget);
+    expect(find.text('New chat'), findsWidgets);
+    expect(
+      find.text(
+        OpenChatKeyboardShortcuts.formatShortcutLabels(<SingleActivator>[
+          OpenChatKeyboardShortcuts.newChatActivator,
+          OpenChatKeyboardShortcuts.alternateNewChatActivator,
+        ]),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        OpenChatKeyboardShortcuts.formatShortcutLabel(
+          OpenChatKeyboardShortcuts.sendMessageActivator,
+        ),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('mobile header hides keyboard shortcuts help button', (
+    WidgetTester tester,
+  ) async {
+    OpenChatKeyboardShortcuts.debugIsDesktopOrWebOverride = false;
+
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+
+    final SettingsController settingsController = SettingsController(
+      providerConfigStore: ProviderConfigStore(preferences),
+      appSettingsStore: AppSettingsStore(preferences),
+    );
+    await settingsController.initialize();
+
+    final ChatController chatController = ChatController(
+      chatStore: ChatStore(preferences),
+      promptTemplateStore: PromptTemplateStore(preferences),
+      apiClient: OpenAiCompatibleClient(
+        isWebOverride: false,
+        httpClient: MockClient((http.Request request) async {
+          return http.Response(
+            jsonEncode(<String, Object>{
+              'choices': <Map<String, Object>>[
+                <String, Object>{
+                  'message': <String, String>{'content': 'Assistant reply'},
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      ),
+    );
+    await chatController.initialize();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: <SingleChildWidget>[
+          ChangeNotifierProvider<SettingsController>.value(
+            value: settingsController,
+          ),
+          ChangeNotifierProvider<ChatController>.value(value: chatController),
+          ChangeNotifierProvider<VoiceInputService>(
+            create: (_) => VoiceInputService.withState(
+              const VoiceInputState(status: VoiceInputStatus.idle),
+            ),
+          ),
+          ChangeNotifierProvider<TtsService>(create: (_) => TtsService()),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightTheme(),
+          darkTheme: AppTheme.darkTheme(),
+          home: const HomeScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('header-shortcuts-help-button')), findsNothing);
   });
 
   testWidgets('narrow viewport switches header and composer to compact layout',

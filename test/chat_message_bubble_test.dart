@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openchat/src/models/attachment.dart';
@@ -9,9 +10,16 @@ import 'package:openchat/src/theme/app_theme.dart';
 import 'package:openchat/src/widgets/chat_message_bubble.dart';
 import 'package:provider/provider.dart';
 
-Widget _wrap(Widget child) => ChangeNotifierProvider<TtsService>(
+Widget _wrap(Widget child, {Locale? locale}) =>
+    ChangeNotifierProvider<TtsService>(
       create: (_) => TtsService(),
       child: MaterialApp(
+        locale: locale,
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        supportedLocales: const <Locale>[
+          Locale('en', 'US'),
+          Locale('de', 'DE'),
+        ],
         theme: AppTheme.lightTheme(),
         home: child,
       ),
@@ -171,5 +179,43 @@ void main() {
     await tester.tap(find.text('Fork'));
     await tester.pumpAndSettle();
     expect(didFork, isTrue);
+  });
+
+  testWidgets('completed messages show a locale-aware timestamp tooltip', (
+    WidgetTester tester,
+  ) async {
+    final DateTime createdAt = DateTime(2026, 3, 16, 17, 45);
+
+    await tester.pumpWidget(
+      _wrap(
+        Scaffold(
+          body: ChatMessageBubble(
+            message: ChatMessage(
+              id: 'user-1',
+              role: ChatRole.user,
+              text: 'When was this sent?',
+              createdAt: createdAt,
+              attachments: const <ChatAttachment>[],
+              isStreaming: false,
+              isError: false,
+            ),
+          ),
+        ),
+        locale: const Locale('de', 'DE'),
+      ),
+    );
+
+    final BuildContext context = tester.element(find.byType(ChatMessageBubble));
+    final String expectedTimestamp =
+        MaterialLocalizations.of(context).formatTimeOfDay(
+      TimeOfDay.fromDateTime(createdAt),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
+    final String expectedTooltip =
+        '${MaterialLocalizations.of(context).formatFullDate(createdAt)}\n'
+        '$expectedTimestamp';
+
+    expect(find.text(expectedTimestamp), findsOneWidget);
+    expect(find.byTooltip(expectedTooltip), findsOneWidget);
   });
 }

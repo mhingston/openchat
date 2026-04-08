@@ -32,7 +32,23 @@ OpenChat is a Flutter chat client with a ChatGPT-style interface, local conversa
 - Source URL citations shown inline on web-search-backed responses. URLs in assistant messages are tappable.
 - Auto-generated conversation titles after the first exchange.
 - Inline copy button on assistant messages.
-- Theme selection and keyboard shortcuts: `Cmd+N` / `Cmd+K` for new chat, `Cmd+/` to toggle web search, `Cmd+Enter` to send.
+- Starter prompt chips in ready-to-chat empty states for quick composer prefills.
+- Theme selection plus desktop/web keyboard shortcuts, with an in-app shortcuts help button in the header.
+
+## Keyboard shortcuts
+
+On desktop and web, use `Cmd` on Apple platforms and `Ctrl` elsewhere:
+
+- `Cmd/Ctrl+N` or `Cmd/Ctrl+K` — new chat
+- `Cmd/Ctrl+F` — search conversations
+- `Cmd/Ctrl+,` — settings
+- `Cmd/Ctrl+[` — previous conversation
+- `Cmd/Ctrl+]` — next conversation
+- `Cmd/Ctrl+Enter` — send
+- `Cmd/Ctrl+/` — toggle web search
+- `Esc` — clear the current draft
+
+Use the header shortcuts button to see the same list in-app.
 
 ## Local development
 
@@ -98,7 +114,21 @@ The default allowlist already includes:
 
 All other public hostnames (including `r.jina.ai`) are permitted automatically via an IP-range check that blocks loopback, link-local, and RFC-1918 addresses.
 
+Common local helper scripts live under `tool/`, including `dart run tool/local_checks.dart` and `dart run tool/top_level_tests.dart`.
+
 ## Quality checks
+
+Run the standard local checks:
+
+```bash
+dart run tool/local_checks.dart
+```
+
+Run the top-level unit/widget tests only:
+
+```bash
+dart run tool/top_level_tests.dart
+```
 
 Run static analysis:
 

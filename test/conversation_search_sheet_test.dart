@@ -7,6 +7,7 @@ import 'package:openchat/src/widgets/conversation_search_sheet.dart';
 void main() {
   testWidgets('search sheet shows matches and selects a result',
       (WidgetTester tester) async {
+    final DateTime updatedAt = DateTime(2001, 1, 2, 9, 0);
     String? selectedThreadId;
 
     await tester.pumpWidget(
@@ -36,7 +37,7 @@ void main() {
                                   preview:
                                       'Need a release checklist for Friday.',
                                   matchLabel: 'Assistant message',
-                                  updatedAt: DateTime(2026, 3, 18, 9),
+                                  updatedAt: updatedAt,
                                   isPinned: true,
                                   messageId: 'message-1',
                                 ),
@@ -68,6 +69,10 @@ void main() {
 
     expect(find.text('Release planning'), findsOneWidget);
     expect(find.text('Assistant message'), findsOneWidget);
+    final BuildContext context = tester.element(find.text('Release planning'));
+    final String expectedTimestamp =
+        MaterialLocalizations.of(context).formatCompactDate(updatedAt);
+    expect(find.text(expectedTimestamp), findsOneWidget);
 
     await tester.tap(find.text('Release planning'));
     await tester.pumpAndSettle();

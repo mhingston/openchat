@@ -11,6 +11,7 @@ class OpenChatHeader extends StatelessWidget {
     required this.onMenuPressed,
     required this.onExportPressed,
     required this.onSettingsPressed,
+    this.onShortcutsHelpPressed,
   });
 
   final String title;
@@ -18,6 +19,7 @@ class OpenChatHeader extends StatelessWidget {
   final VoidCallback onMenuPressed;
   final VoidCallback? onExportPressed;
   final VoidCallback onSettingsPressed;
+  final VoidCallback? onShortcutsHelpPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -44,11 +46,21 @@ class OpenChatHeader extends StatelessWidget {
                   compact: compact,
                   ultraCompact: ultraCompact,
                 ),
+                if (OpenChatKeyboardShortcuts.isDesktopOrWeb &&
+                    onShortcutsHelpPressed != null)
+                  _HeaderActionButton(
+                    actionKey: const Key('header-shortcuts-help-button'),
+                    onPressed: onShortcutsHelpPressed,
+                    icon: Icons.keyboard_rounded,
+                    tooltip: 'Keyboard shortcuts',
+                    compact: compact,
+                    ultraCompact: ultraCompact,
+                  ),
                 _HeaderActionButton(
                   onPressed: onSettingsPressed,
                   icon: Icons.tune,
                   tooltip: OpenChatKeyboardShortcuts.isDesktopOrWeb
-                      ? 'Settings (${OpenChatKeyboardShortcuts.primaryModifierLabel}+,)'
+                      ? 'Settings (${OpenChatKeyboardShortcuts.formatShortcutLabel(OpenChatKeyboardShortcuts.openSettingsActivator)})'
                       : 'Settings',
                   compact: compact,
                   ultraCompact: ultraCompact,
