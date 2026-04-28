@@ -207,7 +207,9 @@ class OpenAiCompatibleClient {
             return models;
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('OpenAiCompatibleClient.listModels: $e');
+      }
       return const <String>[];
     }
 
@@ -254,7 +256,8 @@ class OpenAiCompatibleClient {
       if (models.isNotEmpty) {
         return models;
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('OpenAiCompatibleClient.listModels: $e');
       if (primaryError != null) {
         throw primaryError;
       }
@@ -351,7 +354,8 @@ class OpenAiCompatibleClient {
           .replaceAll(RegExp(r'''^["']+|["']+$'''), '')
           .trim();
       return title.isEmpty ? null : title;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('OpenAiCompatibleClient.generateTitle: $e');
       return null;
     }
   }
@@ -435,7 +439,8 @@ class OpenAiCompatibleClient {
           : _extractMessageContent(decoded);
 
       return content.trim().isEmpty ? null : content.trim();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('OpenAiCompatibleClient.completeChat: $e');
       return null;
     }
   }

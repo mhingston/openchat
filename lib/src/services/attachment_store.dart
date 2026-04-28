@@ -492,8 +492,8 @@ class AttachmentStore {
         _compressImageIsolate,
         (bytes, mimeType, _uploadMaxDimension, _uploadJpegQuality),
       );
-    } catch (_) {
-      // If compression fails for any reason, use the original bytes
+    } catch (e) {
+      debugPrint('AttachmentStore._compressImage: $e');
       return (bytes, mimeType);
     }
   }
@@ -514,7 +514,8 @@ class AttachmentStore {
         return null;
       }
       return base64Encode(pngBytes.buffer.asUint8List());
-    } catch (_) {
+    } catch (e) {
+      debugPrint('AttachmentStore._generateThumbnailBase64: $e');
       return null;
     }
   }

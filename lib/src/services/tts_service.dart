@@ -101,8 +101,8 @@ class TtsService extends ChangeNotifier {
       }
 
       notifyListeners();
-    } catch (_) {
-      // Voice loading is best-effort; fall back to system default.
+    } catch (e) {
+      debugPrint('TtsService._loadVoices: $e');
     }
   }
 

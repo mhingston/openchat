@@ -36,7 +36,8 @@ class RequestForegroundService {
       final granted =
           await _channel.invokeMethod<bool>('hasNotificationPermission');
       return granted ?? true;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('RequestForegroundService.hasNotificationPermission: $e');
       return true;
     }
   }
@@ -48,7 +49,9 @@ class RequestForegroundService {
     if (!await hasNotificationPermission()) return false;
     try {
       await _channel.invokeMethod<void>('start');
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('RequestForegroundService.start: $e');
+    }
     return true;
   }
 
@@ -56,6 +59,8 @@ class RequestForegroundService {
     if (!_supported) return;
     try {
       await _channel.invokeMethod<void>('stop');
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('RequestForegroundService.stop: $e');
+    }
   }
 }

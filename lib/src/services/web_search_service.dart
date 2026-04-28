@@ -128,8 +128,9 @@ class WebSearchService {
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return const <WebSearchResult>[];
       }
-      final Map<String, dynamic> data =
-          jsonDecode(response.body) as Map<String, dynamic>;
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) return const <WebSearchResult>[];
+      final Map<String, dynamic> data = decoded;
       final List<dynamic> rawResults =
           data['results'] as List<dynamic>? ?? <dynamic>[];
       return rawResults.map((dynamic item) {
@@ -155,7 +156,8 @@ class WebSearchService {
           content: content,
         );
       }).toList();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('WebSearchService._searchExa: $e');
       return const <WebSearchResult>[];
     }
   }
@@ -180,8 +182,9 @@ class WebSearchService {
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return const <WebSearchResult>[];
       }
-      final Map<String, dynamic> data =
-          jsonDecode(response.body) as Map<String, dynamic>;
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) return const <WebSearchResult>[];
+      final Map<String, dynamic> data = decoded;
       final List<dynamic> rawResults =
           data['results'] as List<dynamic>? ?? <dynamic>[];
       return rawResults.map((dynamic item) {
@@ -194,7 +197,8 @@ class WebSearchService {
           content: r['content'] as String?,
         );
       }).toList();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('WebSearchService._searchTavily: $e');
       return const <WebSearchResult>[];
     }
   }
@@ -220,8 +224,9 @@ class WebSearchService {
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return const <WebSearchResult>[];
       }
-      final Map<String, dynamic> data =
-          jsonDecode(response.body) as Map<String, dynamic>;
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) return const <WebSearchResult>[];
+      final Map<String, dynamic> data = decoded;
       final Map<String, dynamic>? web =
           data['web'] as Map<String, dynamic>?;
       final List<dynamic> rawResults =
@@ -235,7 +240,8 @@ class WebSearchService {
           source: 'Brave',
         );
       }).toList();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('WebSearchService._searchBrave: $e');
       return const <WebSearchResult>[];
     }
   }
@@ -267,7 +273,8 @@ class WebSearchService {
       }
 
       return _parseHtmlResults(response.body, maxResults: maxResults);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('WebSearchService._searchDuckDuckGo: $e');
       return const <WebSearchResult>[];
     }
   }

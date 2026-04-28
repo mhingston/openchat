@@ -217,8 +217,8 @@ class WebPageBrowseService {
           fetchedUrls.add(linkedExcerpt.url);
           followedPages += 1;
         }
-      } catch (_) {
-        // Ignore page fetch failures so search-based answers can still proceed.
+      } catch (e) {
+        debugPrint('WebPageBrowseService.browse: $e');
       }
     }
 
@@ -483,15 +483,17 @@ class WebPageBrowseService {
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return null;
       }
-      final Map<String, dynamic> data =
-          jsonDecode(response.body) as Map<String, dynamic>;
+      final dynamic decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) return null;
+      final Map<String, dynamic> data = decoded;
       final Map<String, dynamic>? dataMap =
           data['data'] as Map<String, dynamic>?;
       final String? markdown = dataMap?['markdown'] as String?;
       return (markdown != null && markdown.trim().isNotEmpty)
           ? markdown.trim()
           : null;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('WebPageBrowseService._fetchFirecrawlContent: $e');
       return null;
     }
   }
@@ -516,7 +518,8 @@ class WebPageBrowseService {
       }
       final String body = response.body.trim();
       return body.isEmpty ? null : body;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('WebPageBrowseService._fetchJinaContent: $e');
       return null;
     }
   }
