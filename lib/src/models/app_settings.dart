@@ -21,6 +21,7 @@ class AppSettings {
     this.tavilyApiKey = '',
     this.firecrawlApiKey = '',
     this.braveSearchApiKey = '',
+    this.exaApiKey = '',
     this.deepResearchMaxRounds = 2,
   });
 
@@ -43,6 +44,7 @@ class AppSettings {
       tavilyApiKey: json['tavilyApiKey'] as String? ?? '',
       firecrawlApiKey: json['firecrawlApiKey'] as String? ?? '',
       braveSearchApiKey: json['braveSearchApiKey'] as String? ?? '',
+      exaApiKey: json['exaApiKey'] as String? ?? '',
       deepResearchMaxRounds:
           (json['deepResearchMaxRounds'] as int? ?? 2).clamp(0, 5).toInt(),
     );
@@ -55,6 +57,7 @@ class AppSettings {
   final String tavilyApiKey;
   final String firecrawlApiKey;
   final String braveSearchApiKey;
+  final String exaApiKey;
   final int deepResearchMaxRounds;
 
   AppSettings copyWith({
@@ -65,6 +68,7 @@ class AppSettings {
     String? tavilyApiKey,
     String? firecrawlApiKey,
     String? braveSearchApiKey,
+    String? exaApiKey,
     int? deepResearchMaxRounds,
   }) {
     return AppSettings(
@@ -75,6 +79,7 @@ class AppSettings {
       tavilyApiKey: tavilyApiKey ?? this.tavilyApiKey,
       firecrawlApiKey: firecrawlApiKey ?? this.firecrawlApiKey,
       braveSearchApiKey: braveSearchApiKey ?? this.braveSearchApiKey,
+      exaApiKey: exaApiKey ?? this.exaApiKey,
       deepResearchMaxRounds:
           deepResearchMaxRounds ?? this.deepResearchMaxRounds,
     );
@@ -89,6 +94,7 @@ class AppSettings {
       'tavilyApiKey': tavilyApiKey,
       'firecrawlApiKey': firecrawlApiKey,
       'braveSearchApiKey': braveSearchApiKey,
+      'exaApiKey': exaApiKey,
       'deepResearchMaxRounds': deepResearchMaxRounds,
     };
   }

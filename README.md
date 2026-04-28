@@ -22,7 +22,8 @@ OpenChat is a Flutter chat client with a ChatGPT-style interface, local conversa
 - Export conversations as JSON or Markdown and import saved chat data.
 - Voice input on iOS, Android, and supported web browsers.
 - Optional web search with a tiered provider stack that degrades gracefully based on which API keys are configured:
-  - **Tavily** (recommended) — single API call returns search results and full page content, handles JS-heavy sites and anti-bot protection.
+  - **Exa** (highest priority) — neural search with LLM-optimised highlights (10x token efficient). Supports `auto` (~1s), `deep` (5–60s for complex research), and `news` search types. Free tier at dashboard.exa.ai.
+  - **Tavily** — single API call returns search results and full page content, handles JS-heavy sites and anti-bot protection.
   - **Brave Search** — reliable JSON search results, replaces DuckDuckGo HTML scraping.
   - **Firecrawl** — content extraction for JS-rendered pages and Cloudflare-protected sites.
   - **Jina AI Reader** — higher rate limits when an API key is configured; used unauthenticated as a fallback.
@@ -111,6 +112,7 @@ The default allowlist already includes:
 - `api.tavily.com`
 - `api.search.brave.com`
 - `api.firecrawl.dev`
+- `api.exa.ai`
 
 All other public hostnames (including `r.jina.ai`) are permitted automatically via an IP-range check that blocks loopback, link-local, and RFC-1918 addresses.
 

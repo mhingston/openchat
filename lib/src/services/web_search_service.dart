@@ -12,6 +12,7 @@ class WebSearchService {
     http.Client? httpClient,
     bool? isWebOverride,
     String webProxyUrl = _defaultWebSearchProxyUrl,
+    this.exaApiKey,
     this.tavilyApiKey,
     this.braveSearchApiKey,
   })  : _httpClient = httpClient ?? http.Client(),
@@ -23,16 +24,22 @@ class WebSearchService {
   final bool _ownsClient;
   final bool _isWeb;
   final String _webProxyUrl;
+  final String? exaApiKey;
   final String? tavilyApiKey;
   final String? braveSearchApiKey;
 
   Future<List<WebSearchResult>> search(
     String query, {
     int maxResults = 5,
+    String searchType = 'auto',
   }) async {
     final String normalizedQuery = query.trim();
     if (normalizedQuery.isEmpty) {
       return const <WebSearchResult>[];
+    }
+
+    if (exaApiKey != null && exaApiKey!.isNotEmpty) {
+      return _searchExa(normalizedQuery, maxResults: maxResults, searchType: searchType);
     }
 
     if (tavilyApiKey != null && tavilyApiKey!.isNotEmpty) {
@@ -51,13 +58,14 @@ class WebSearchService {
   Future<List<WebSearchResult>> searchAll(
     List<String> queries, {
     int maxResultsPerQuery = 5,
+    String searchType = 'auto',
   }) async {
     if (queries.isEmpty) {
       return const <WebSearchResult>[];
     }
     final List<List<WebSearchResult>> perQueryResults = await Future.wait(
       queries.map(
-        (String q) => search(q, maxResults: maxResultsPerQuery),
+        (String q) => search(q, maxResults: maxResultsPerQuery, searchType: searchType),
       ),
     );
     final Set<String> seenUrls = <String>{};
@@ -92,6 +100,64 @@ class WebSearchService {
       return null;
     }
     return parsed;
+  }
+
+  Future<List<WebSearchResult>> _searchExa(
+    String query, {
+    required int maxResults,
+    required String searchType,
+  }) async {
+    try {
+      final http.Response response = await _httpClient.post(
+        Uri.parse('https://api.exa.ai/search'),
+        headers: <String, String>{
+          'Content-Type': 'application/json',
+          'x-api-key': exaApiKey!,
+        },
+        body: jsonEncode(<String, dynamic>{
+          'query': query,
+          'type': searchType,
+          'contents': <String, dynamic>{
+            'highlights': <String, dynamic>{
+              'maxCharacters': 4000,
+            },
+          },
+          'numResults': maxResults,
+        }),
+      );
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return const <WebSearchResult>[];
+      }
+      final Map<String, dynamic> data =
+          jsonDecode(response.body) as Map<String, dynamic>;
+      final List<dynamic> rawResults =
+          data['results'] as List<dynamic>? ?? <dynamic>[];
+      return rawResults.map((dynamic item) {
+        final Map<String, dynamic> r = item as Map<String, dynamic>;
+        final Map<String, dynamic>? highlight =
+            r['highlight'] as Map<String, dynamic>?;
+        final List<dynamic>? highlights =
+            highlight?['highlights'] as List<dynamic>?;
+        final String snippet = highlights != null && highlights.isNotEmpty
+            ? (highlights.take(2).map((dynamic h) {
+                final String s = h as String;
+                return s.length > 500 ? s.substring(0, 500) : s;
+              }).join(' | '))
+            : '';
+        final String? content = highlights != null && highlights.isNotEmpty
+            ? highlights.map((dynamic h) => h as String).join('\n\n')
+            : null;
+        return WebSearchResult(
+          title: r['title'] as String? ?? '',
+          url: r['url'] as String? ?? '',
+          snippet: snippet,
+          source: 'Exa',
+          content: content,
+        );
+      }).toList();
+    } catch (_) {
+      return const <WebSearchResult>[];
+    }
   }
 
   Future<List<WebSearchResult>> _searchTavily(

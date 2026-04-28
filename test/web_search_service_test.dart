@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -44,6 +46,201 @@ void main() {
     expect(results.first.title, 'OpenChat');
     expect(results.first.url, 'https://example.com/openchat');
     expect(results.last.title, 'OpenChat GitHub');
+  });
+
+  group('Exa search', () {
+    test('uses Exa when exaApiKey is set', () async {
+      late Uri requestedUri;
+      late Map<String, dynamic> requestBody;
+      final WebSearchService service = WebSearchService(
+        isWebOverride: false,
+        exaApiKey: 'test-exa-key',
+        httpClient: MockClient((http.Request request) async {
+          requestedUri = request.url;
+          requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response(
+            '{"results": []}',
+            200,
+            headers: {'Content-Type': 'application/json'},
+          );
+        }),
+      );
+
+      await service.search('hello world');
+
+      expect(requestedUri.toString(), 'https://api.exa.ai/search');
+      expect(requestBody['query'], 'hello world');
+      expect(requestBody['type'], 'auto');
+      expect(requestBody['numResults'], 5);
+      expect(requestBody['contents']['highlights']['maxCharacters'], 4000);
+    });
+
+    test('Exa takes priority over Tavily', () async {
+      int exaCalled = 0;
+      int tavilyCalled = 0;
+      final WebSearchService service = WebSearchService(
+        isWebOverride: false,
+        exaApiKey: 'test-exa-key',
+        tavilyApiKey: 'test-tavily-key',
+        httpClient: MockClient((http.Request request) async {
+          if (request.url.toString() == 'https://api.exa.ai/search') {
+            exaCalled++;
+            return http.Response(
+              '{"results": [{"title": "Exa Result", "url": "https://exa.com", "highlight": {"highlights": ["exa content"], "score": 0.9}}]}',
+              200,
+              headers: {'Content-Type': 'application/json'},
+            );
+          }
+          tavilyCalled++;
+          return http.Response('{"results": []}', 200);
+        }),
+      );
+
+      final results = await service.search('test');
+
+      expect(exaCalled, 1);
+      expect(tavilyCalled, 0);
+      expect(results, hasLength(1));
+      expect(results.first.source, 'Exa');
+    });
+
+    test('parses Exa results correctly', () async {
+      final WebSearchService service = WebSearchService(
+        isWebOverride: false,
+        exaApiKey: 'test-exa-key',
+        httpClient: MockClient((http.Request request) async {
+          return http.Response(
+            '{"results": ['
+            '{"title": "Result 1", "url": "https://example.com/1", "highlight": {"highlights": ["first highlight", "second highlight"], "score": 0.9}},'
+            '{"title": "Result 2", "url": "https://example.com/2", "highlight": {"highlights": ["single highlight"], "score": 0.5}},'
+            '{"title": "Result 3", "url": "https://example.com/3", "highlight": null}'
+            ']}',
+            200,
+            headers: {'Content-Type': 'application/json'},
+          );
+        }),
+      );
+
+      final results = await service.search('test');
+
+      expect(results, hasLength(3));
+      expect(results[0].title, 'Result 1');
+      expect(results[0].url, 'https://example.com/1');
+      expect(results[0].snippet, 'first highlight | second highlight');
+      expect(results[0].source, 'Exa');
+      expect(results[0].content, 'first highlight\n\nsecond highlight');
+      expect(results[1].title, 'Result 2');
+      expect(results[1].snippet, 'single highlight');
+      expect(results[2].snippet, '');
+    });
+
+    test('sends searchType parameter correctly', () async {
+      late Map<String, dynamic> requestBody;
+      final WebSearchService service = WebSearchService(
+        isWebOverride: false,
+        exaApiKey: 'test-exa-key',
+        httpClient: MockClient((http.Request request) async {
+          requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('{"results": []}', 200);
+        }),
+      );
+
+      await service.search('news query', searchType: 'news');
+
+      expect(requestBody['type'], 'news');
+    });
+
+    test('searchAll passes searchType to search', () async {
+      int callCount = 0;
+      late Map<String, dynamic> requestBody1;
+      late Map<String, dynamic> requestBody2;
+      final WebSearchService service = WebSearchService(
+        isWebOverride: false,
+        exaApiKey: 'test-exa-key',
+        httpClient: MockClient((http.Request request) async {
+          callCount++;
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          if (callCount == 1) {
+            requestBody1 = body;
+          } else {
+            requestBody2 = body;
+          }
+          return http.Response('{"results": []}', 200);
+        }),
+      );
+
+      await service.searchAll(
+        ['query one', 'query two'],
+        searchType: 'news',
+      );
+
+      expect(requestBody1['type'], 'news');
+      expect(requestBody2['type'], 'news');
+    });
+
+    test('searchAll defaults searchType to auto', () async {
+      late Map<String, dynamic> requestBody;
+      final WebSearchService service = WebSearchService(
+        isWebOverride: false,
+        exaApiKey: 'test-exa-key',
+        httpClient: MockClient((http.Request request) async {
+          requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('{"results": []}', 200);
+        }),
+      );
+
+      await service.searchAll(['test query']);
+
+      expect(requestBody['type'], 'auto');
+    });
+
+    test('defaults searchType to auto', () async {
+      late Map<String, dynamic> requestBody;
+      final WebSearchService service = WebSearchService(
+        isWebOverride: false,
+        exaApiKey: 'test-exa-key',
+        httpClient: MockClient((http.Request request) async {
+          requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response('{"results": []}', 200);
+        }),
+      );
+
+      await service.search('test');
+
+      expect(requestBody['type'], 'auto');
+    });
+
+    test('handles empty Exa results', () async {
+      final WebSearchService service = WebSearchService(
+        isWebOverride: false,
+        exaApiKey: 'test-exa-key',
+        httpClient: MockClient((http.Request request) async {
+          return http.Response(
+            '{"results": []}',
+            200,
+            headers: {'Content-Type': 'application/json'},
+          );
+        }),
+      );
+
+      final results = await service.search('test');
+
+      expect(results, isEmpty);
+    });
+
+    test('handles Exa non-200 response', () async {
+      final WebSearchService service = WebSearchService(
+        isWebOverride: false,
+        exaApiKey: 'test-exa-key',
+        httpClient: MockClient((http.Request request) async {
+          return http.Response('error', 500);
+        }),
+      );
+
+      final results = await service.search('test');
+
+      expect(results, isEmpty);
+    });
   });
 
   test('formats context with numbered sources', () {

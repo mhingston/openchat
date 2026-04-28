@@ -275,6 +275,195 @@ void main() {
       expect(messages.first['content'], contains('Sources:'));
     });
 
+    test('sendMessage passes searchType news for news-related queries with Exa',
+        () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences preferences =
+          await SharedPreferences.getInstance();
+      final ChatStore store = ChatStore(preferences);
+      String? capturedSearchType;
+      final ChatController controller = ChatController(
+        chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
+        apiClient: _createClient(),
+        webSearchService: WebSearchService(
+          isWebOverride: false,
+          exaApiKey: 'test-exa-key',
+          httpClient: MockClient((http.Request request) async {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            capturedSearchType = body['type'] as String?;
+            return http.Response(
+              '{"results": []}',
+              200,
+            );
+          }),
+        ),
+        webPageBrowseService: WebPageBrowseService(
+          isWebOverride: false,
+          httpClient: MockClient((http.Request request) async {
+            if (request.url.host == 'r.jina.ai') {
+              return http.Response('', 404);
+            }
+            return http.Response(
+              '<html><body><main><p>content</p></main></body></html>',
+              200,
+            );
+          }),
+        ),
+        deepResearchMaxRounds: 0,
+      );
+      await controller.initialize();
+
+      const ProviderConfig config = ProviderConfig(
+        presetId: 'openai',
+        label: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'sk-test',
+        model: 'gpt-4o-mini',
+        systemPrompt: '',
+        temperature: 1.0,
+        streamResponses: false,
+      );
+
+      await controller.sendMessage(
+        text: 'What are the latest headlines today?',
+        attachments: const [],
+        config: config,
+        useWebSearch: true,
+      );
+
+      expect(capturedSearchType, 'news');
+    });
+
+    test(
+        'sendMessage uses searchType auto for non-news queries with Exa single pass',
+        () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences preferences =
+          await SharedPreferences.getInstance();
+      final ChatStore store = ChatStore(preferences);
+      String? capturedSearchType;
+      final ChatController controller = ChatController(
+        chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
+        apiClient: _createClient(),
+        webSearchService: WebSearchService(
+          isWebOverride: false,
+          exaApiKey: 'test-exa-key',
+          httpClient: MockClient((http.Request request) async {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            capturedSearchType = body['type'] as String?;
+            return http.Response(
+              '{"results": []}',
+              200,
+            );
+          }),
+        ),
+        webPageBrowseService: WebPageBrowseService(
+          isWebOverride: false,
+          httpClient: MockClient((http.Request request) async {
+            if (request.url.host == 'r.jina.ai') {
+              return http.Response('', 404);
+            }
+            return http.Response(
+              '<html><body><main><p>content</p></main></body></html>',
+              200,
+            );
+          }),
+        ),
+        deepResearchMaxRounds: 0,
+      );
+      await controller.initialize();
+
+      const ProviderConfig config = ProviderConfig(
+        presetId: 'openai',
+        label: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'sk-test',
+        model: 'gpt-4o-mini',
+        systemPrompt: '',
+        temperature: 1.0,
+        streamResponses: false,
+      );
+
+      await controller.sendMessage(
+        text: 'How does quantum computing work?',
+        attachments: const [],
+        config: config,
+        useWebSearch: true,
+      );
+
+      expect(capturedSearchType, 'auto');
+    });
+
+    test('sendMessage uses searchType deep when deepResearchMaxRounds > 0 with Exa',
+        () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final SharedPreferences preferences =
+          await SharedPreferences.getInstance();
+      final ChatStore store = ChatStore(preferences);
+      int exaCallCount = 0;
+      String? capturedSearchType;
+      final ChatController controller = ChatController(
+        chatStore: store,
+        promptTemplateStore: PromptTemplateStore(preferences),
+        apiClient: _createClient(),
+        webSearchService: WebSearchService(
+          isWebOverride: false,
+          exaApiKey: 'test-exa-key',
+          httpClient: MockClient((http.Request request) async {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            // Only capture the first (initial) search call
+            if (exaCallCount == 0) {
+              capturedSearchType = body['type'] as String?;
+            }
+            exaCallCount++;
+            return http.Response(
+              '{"results": [{"title":"R1","url":"https://e.com/1","highlight":{"highlights":["c"],"score":0.9}}]}',
+              200,
+            );
+          }),
+        ),
+        webPageBrowseService: WebPageBrowseService(
+          isWebOverride: false,
+          httpClient: MockClient((http.Request request) async {
+            if (request.url.host == 'r.jina.ai') {
+              return http.Response('', 404);
+            }
+            if (request.url.toString() == 'https://e.com/1') {
+              return http.Response(
+                '<html><body><main><p>page content</p></main></body></html>',
+                200,
+              );
+            }
+            return http.Response(
+              '<html><body><main><p>fallback</p></main></body></html>',
+              200,
+            );
+          }),
+        ),
+        deepResearchMaxRounds: 1,
+      );
+      await controller.initialize();
+      await controller.sendMessage(
+        text: 'Tell me about AI',
+        attachments: const [],
+        config: const ProviderConfig(
+          presetId: 'openai',
+          label: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          apiKey: 'sk-test',
+          model: 'gpt-4o-mini',
+          systemPrompt: '',
+          temperature: 1.0,
+          streamResponses: false,
+        ),
+        useWebSearch: true,
+      );
+
+      expect(capturedSearchType, 'deep');
+    });
+
     test('sendMessage strips leaked tool and think markup from responses',
         () async {
       SharedPreferences.setMockInitialValues(<String, Object>{});

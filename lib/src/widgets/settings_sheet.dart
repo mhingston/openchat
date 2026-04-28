@@ -18,6 +18,7 @@ class SettingsSheet extends StatefulWidget {
     required this.tavilyApiKey,
     required this.firecrawlApiKey,
     required this.braveSearchApiKey,
+    required this.exaApiKey,
     required this.deepResearchMaxRounds,
     required this.onSaveWebSearch,
   });
@@ -30,12 +31,14 @@ class SettingsSheet extends StatefulWidget {
   final String tavilyApiKey;
   final String firecrawlApiKey;
   final String braveSearchApiKey;
+  final String exaApiKey;
   final int deepResearchMaxRounds;
   final Future<void> Function(
     String jinaApiKey,
     String tavilyApiKey,
     String firecrawlApiKey,
     String braveSearchApiKey,
+    String exaApiKey,
     int deepResearchMaxRounds,
   ) onSaveWebSearch;
 
@@ -65,10 +68,12 @@ class _SettingsSheetState extends State<SettingsSheet> {
   late final TextEditingController _tavilyApiKeyController;
   late final TextEditingController _firecrawlApiKeyController;
   late final TextEditingController _braveSearchApiKeyController;
+  late final TextEditingController _exaApiKeyController;
   bool _obscureJinaApiKey = true;
   bool _obscureTavilyApiKey = true;
   bool _obscureFirecrawlApiKey = true;
   bool _obscureBraveSearchApiKey = true;
+  bool _obscureExaApiKey = true;
   late int _deepResearchMaxRounds;
 
   @override
@@ -92,6 +97,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
         TextEditingController(text: widget.firecrawlApiKey);
     _braveSearchApiKeyController =
         TextEditingController(text: widget.braveSearchApiKey);
+    _exaApiKeyController = TextEditingController(text: widget.exaApiKey);
     _deepResearchMaxRounds = widget.deepResearchMaxRounds;
   }
 
@@ -106,6 +112,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
     _tavilyApiKeyController.dispose();
     _firecrawlApiKeyController.dispose();
     _braveSearchApiKeyController.dispose();
+    _exaApiKeyController.dispose();
     super.dispose();
   }
 
@@ -546,6 +553,32 @@ class _SettingsSheetState extends State<SettingsSheet> {
                       ),
                       const SizedBox(height: 12),
                       TextField(
+                        controller: _exaApiKeyController,
+                        obscureText: _obscureExaApiKey,
+                        decoration: InputDecoration(
+                          labelText: 'Exa API key',
+                          hintText: 'Free at dashboard.exa.ai',
+                          helperText:
+                              'Neural search + LLM-ready highlights, replaces DuckDuckGo scraping',
+                          suffixIcon: IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _obscureExaApiKey = !_obscureExaApiKey;
+                              });
+                            },
+                            tooltip: _obscureExaApiKey
+                                ? 'Show Exa API key'
+                                : 'Hide Exa API key',
+                            icon: Icon(
+                              _obscureExaApiKey
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
                         controller: _braveSearchApiKeyController,
                         obscureText: _obscureBraveSearchApiKey,
                         decoration: InputDecoration(
@@ -720,6 +753,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
         _tavilyApiKeyController.text.trim(),
         _firecrawlApiKeyController.text.trim(),
         _braveSearchApiKeyController.text.trim(),
+        _exaApiKeyController.text.trim(),
         _deepResearchMaxRounds,
       );
       if (!mounted) {

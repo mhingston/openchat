@@ -796,6 +796,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     String? tavilyApiKey,
     String? firecrawlApiKey,
     String? braveSearchApiKey,
+    String? exaApiKey,
     int deepResearchMaxRounds = 2,
   }) {
     _deepResearchMaxRounds = deepResearchMaxRounds;
@@ -811,13 +812,16 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
         (braveSearchApiKey == null || braveSearchApiKey.isEmpty)
             ? null
             : braveSearchApiKey;
+    final String? exa = (exaApiKey == null || exaApiKey.isEmpty)
+        ? null
+        : exaApiKey;
 
     if (_ownsWebServices) {
       _webSearchService.dispose();
       _webPageBrowseService.dispose();
     }
-    _webSearchService =
-        WebSearchService(tavilyApiKey: tavily, braveSearchApiKey: brave);
+    _webSearchService = WebSearchService(
+        exaApiKey: exa, tavilyApiKey: tavily, braveSearchApiKey: brave);
     _webPageBrowseService =
         WebPageBrowseService(jinaApiKey: jina, firecrawlApiKey: firecrawl);
     _ownsWebServices = true;
@@ -1215,17 +1219,21 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
       );
     }
 
+    final String? searchType = _isNewsQuery(initialQuery) ? 'news' : null;
+
     if (_deepResearchMaxRounds <= 0) {
       // Legacy single-pass behaviour.
       return _singlePassWebSearch(
         requestMessages: requestMessages,
         initialQuery: initialQuery,
+        searchType: searchType ?? 'auto',
       );
     }
 
     return _deepResearchLoop(
       requestMessages: requestMessages,
       initialQuery: initialQuery,
+      searchType: searchType ?? 'auto',
     );
   }
 
@@ -1275,15 +1283,25 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     return (<ChatMessage>[contextMessage, ...requestMessages], sources);
   }
 
+  bool _isNewsQuery(String query) {
+    final String lower = query.toLowerCase();
+    return lower.contains('news') ||
+        lower.contains('headlines') ||
+        lower.contains('latest') ||
+        lower.contains('breaking') ||
+        lower.contains('today');
+  }
+
   Future<(List<ChatMessage>, List<String>)> _singlePassWebSearch({
     required List<ChatMessage> requestMessages,
     required String initialQuery,
+    String searchType = 'auto',
   }) async {
     _searchStatus = 'Searching the web…';
     notifyListeners();
 
     final List<WebSearchResult> results =
-        await _webSearchService.search(initialQuery);
+        await _webSearchService.search(initialQuery, searchType: searchType);
     if (results.isEmpty) {
       _searchStatus = null;
       notifyListeners();
@@ -1314,6 +1332,7 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
   Future<(List<ChatMessage>, List<String>)> _deepResearchLoop({
     required List<ChatMessage> requestMessages,
     required String initialQuery,
+    String searchType = 'auto',
   }) async {
     final List<(String, List<WebSearchResult>, List<WebPageExcerpt>)>
         allRounds = <(String, List<WebSearchResult>, List<WebPageExcerpt>)>[];
@@ -1324,8 +1343,9 @@ class ChatController extends ChangeNotifier with WidgetsBindingObserver {
     _searchStatus = 'Searching the web…';
     notifyListeners();
 
+    // Deep research warrants deeper search
     final List<WebSearchResult> round1Results =
-        await _webSearchService.search(initialQuery);
+        await _webSearchService.search(initialQuery, searchType: 'deep');
 
     if (round1Results.isNotEmpty) {
       _searchStatus = 'Browsing pages…';
